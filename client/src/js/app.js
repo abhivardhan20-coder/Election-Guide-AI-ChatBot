@@ -12,7 +12,8 @@ import { state } from './state.js';
 
 // Configure DOMPurify to ensure all AI-generated links open in a new tab for SPA stability
 DOMPurify.addHook('afterSanitizeAttributes', function(node) {
-  if ('target' in node) {
+  // Strictly target anchor tags to prevent modifying forms or base elements
+  if (node.tagName === 'A') {
     node.setAttribute('target', '_blank');
     node.setAttribute('rel', 'noopener noreferrer');
   }
@@ -81,6 +82,9 @@ async function loadMode(mode, navEl) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   if (navEl) navEl.classList.add('active');
 
+  const chat = document.getElementById('chat');
+  if (chat) chat.focus(); // Shift screen reader context to the newly updated area
+
   if (mode === 'booth') {
     appendMessage('user', MODES.booth.prompt);
     const loc = localStorage.getItem('user_location') || 'India';
@@ -88,7 +92,6 @@ async function loadMode(mode, navEl) {
     const mapsQuery = encodeURIComponent(`election polling booth ${loc}`);
     const embedUrl = `https://www.google.com/maps/embed/v1/search?key=${import.meta.env.VITE_MAPS_API_KEY}&q=${mapsQuery}`;
     
-    const chat = document.getElementById('chat');
     const wrapper = document.createElement('div');
     wrapper.className = 'msg-row ai';
     wrapper.innerHTML = `

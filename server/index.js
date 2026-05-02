@@ -189,8 +189,9 @@ app.post('/api/chat', (req, res, next) => {
       });
     }
 
-    // Safely extract JSON even if the AI wraps it in markdown formatting
-    rawText = rawText.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+    // Safely extract JSON even if the AI prefixes it with conversational text
+    const jsonMatch = rawText.match(/```(?:json)?\n?([\s\S]*?)\n?```/);
+    rawText = jsonMatch ? jsonMatch[1].trim() : rawText.trim();
     
     const data = JSON.parse(rawText);
 
