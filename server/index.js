@@ -155,7 +155,9 @@ app.use((req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: "Not found" });
   res.sendFile(path.join(distPath, 'index.html'));
 });
-
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`ElectionGuide AI Backend running on port ${PORT}`);
 });
+
+export { app, server };
+export default app;
