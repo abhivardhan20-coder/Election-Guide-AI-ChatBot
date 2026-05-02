@@ -26,7 +26,8 @@ describe('Auth Module', () => {
 
   it('should remove items on sign out', async () => {
     await signOut(localStorage);
-    expect(localStorage.clear).toHaveBeenCalled();
+    expect(localStorage.removeItem).toHaveBeenCalledWith('google_user_email');
+    expect(localStorage.removeItem).toHaveBeenCalledWith('is_guest');
     expect(window.location.href).toBe('/');
   });
 

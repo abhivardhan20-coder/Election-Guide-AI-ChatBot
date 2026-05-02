@@ -39,7 +39,15 @@ export async function syncProfileToFirebase(db, auth, localStorage) {
 export const signOut = async (localStorage) => {
   try {
     await firebaseSignOut(auth);
-    localStorage.clear();
+    // Explicitly remove user-specific keys to preserve application preferences like language
+    localStorage.removeItem('google_user_name');
+    localStorage.removeItem('google_user_email');
+    localStorage.removeItem('google_user_picture');
+    localStorage.removeItem('is_guest');
+    localStorage.removeItem('user_age');
+    localStorage.removeItem('user_location');
+    localStorage.removeItem('user_status');
+    
     window.location.href = '/';
   } catch (error) {
     console.error("Sign Out Error:", error);

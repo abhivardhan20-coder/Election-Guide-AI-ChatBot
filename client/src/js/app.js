@@ -1,5 +1,5 @@
 import { db, auth, analytics } from '../../firebase.js';
-import { logEvent } from "firebase/analytics";
+import { logEvent, setUserId } from "firebase/analytics";
 import { doc, getDoc } from 'firebase/firestore';
 import { GoogleAuthProvider, signInWithCredential, onAuthStateChanged } from 'firebase/auth';
 import { callGeminiAPI } from './api.js';
@@ -178,6 +178,10 @@ const initApp = async () => {
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       if (state.user.isGuest) return;
+      
+      // Associate analytics events with this authenticated user
+      setUserId(analytics, user.uid);
+      
       const localAge = localStorage.getItem('user_age');
       if (!localAge) {
         modal.style.display = 'flex';
@@ -223,12 +227,13 @@ const initApp = async () => {
      const age = document.getElementById('onboardingAge').value;
      const loc = document.getElementById('onboardingLocation').value;
      const status = document.getElementById('onboardingStatus').value;
-     
+     let errorMsg = document.getElementById('modal-error');
+
      if(!age || !loc || !status) {
-       let errorMsg = document.getElementById('modal-error');
        if (!errorMsg) {
          errorMsg = document.createElement('p');
          errorMsg.id = 'modal-error';
+         errorMsg.setAttribute('role', 'alert');
          errorMsg.style.color = '#ef4444';
          errorMsg.style.fontSize = '13px';
          errorMsg.style.marginBottom = '12px';
@@ -238,6 +243,8 @@ const initApp = async () => {
        errorMsg.textContent = "Please fill out all fields to continue.";
        return;
      }
+
+     if (errorMsg) errorMsg.remove();
 
      document.getElementById('userAge').value = age;
      document.getElementById('userLocation').value = loc;
