@@ -38,4 +38,13 @@ describe('UI Module', () => {
     autoResize(textarea);
     expect(textarea.style.height).not.toBe('10px');
   });
+
+  it('should render context-aware chips', () => {
+    const { appendChips } = require('./ui.js');
+    appendChips(['How do I register?', 'Next step?'], false, vi.fn());
+    const chips = document.querySelectorAll('.chip');
+    expect(chips.length).toBe(2);
+    expect(chips[0].textContent).toBe('How do I register?');
+    expect(chips[0].getAttribute('aria-label')).toBe('Ask: How do I register?');
+  });
 });

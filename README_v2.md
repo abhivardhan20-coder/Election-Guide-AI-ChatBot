@@ -1,5 +1,5 @@
-# ElectionGuide AI - Code Snapshot (Version 1)
-*Generated on: 2026-05-02 16:08:12*
+# ElectionGuide AI - Code Snapshot (Version 2)
+*Generated on: 2026-05-02 16:08:49*
 
 This document contains a full snapshot of the application source code for documentation and review purposes.
 

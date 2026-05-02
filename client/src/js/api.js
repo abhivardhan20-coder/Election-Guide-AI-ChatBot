@@ -1,45 +1,48 @@
-import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+const MAX_HISTORY = 20;
 
-export async function callGeminiAPI(userMsg, historyLog, auth, localStorage) {
-  historyLog.push({ role: 'user', content: userMsg });
-  const contents = historyLog.map(m => ({ 
-    role: m.role === 'ai' ? 'model' : 'user', 
-    parts: [{ text: m.content }] 
-  }));
+export async function callGeminiAPI(text, historyLog, auth, localStorage) {
+  const isGuest = localStorage.getItem('is_guest') === 'true';
+  let idToken = 'GUEST_TOKEN';
+
+  if (!isGuest) {
+    if (!auth.currentUser) {
+      throw new Error("Unauthorized: session expired. Please sign in again.");
+    }
+    idToken = await auth.currentUser.getIdToken();
+  }
+
+  // Trim history to prevent unbounded growth
+  const trimmedHistory = historyLog.slice(-MAX_HISTORY);
   
-  // Ensure we are authenticated (skip if guest)
-  if (localStorage.getItem('is_guest')) {
-    const resp = await fetch(`/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer GUEST_TOKEN` },
-      body: JSON.stringify({ contents: contents })
-    });
-    if (!resp.ok) { const err = await resp.json(); throw new Error(err.error || "Backend Error"); }
-    const data = await resp.json();
-    const text = data.reply;
-    historyLog.push({ role: 'ai', content: text });
-    return text;
-  }
+  // Format history for Gemini
+  const contents = trimmedHistory.map(msg => ({
+    role: msg.role === 'ai' ? 'model' : 'user',
+    parts: [{ text: msg.content }]
+  }));
 
-  if (!auth.currentUser) {
-     const idToken = localStorage.getItem('google_id_token');
-     if (idToken) {
-       const credential = GoogleAuthProvider.credential(idToken);
-       await signInWithCredential(auth, credential);
-     } else {
-       throw new Error("User not authenticated. Please sign in again.");
-     }
-  }
-
-  const idToken = await auth.currentUser.getIdToken();
-  const resp = await fetch(`/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-    body: JSON.stringify({ contents: contents })
+  // Add the current user message
+  contents.push({
+    role: 'user',
+    parts: [{ text }]
   });
-  if (!resp.ok) { const err = await resp.json(); throw new Error(err.error || "Backend Error"); }
-  const data = await resp.json();
-  const text = data.reply;
-  historyLog.push({ role: 'ai', content: text });
-  return text;
+
+  const response = await fetch('/api/chat', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${idToken}`
+    },
+    body: JSON.stringify({ contents })
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to fetch AI response');
+  }
+
+  // Locally log history
+  historyLog.push({ role: 'user', content: text });
+  historyLog.push({ role: 'ai', content: data.reply });
+
+  return data.reply;
 }

@@ -1,4 +1,5 @@
-const GOOGLE_CLIENT_ID = "1056900120908-4dgeabgf8kukfhc0tcedu3ptv1bn3u6k.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+if (!GOOGLE_CLIENT_ID) throw new Error("VITE_GOOGLE_CLIENT_ID is not set");
 
 function parseJwt(token) {
   var base64Url = token.split('.')[1];
@@ -11,10 +12,11 @@ function parseJwt(token) {
 
 function handleCredentialResponse(response) {
   const payload = parseJwt(response.credential);
+  // Save user metadata, but NOT the raw ID token in localStorage
   localStorage.setItem('google_user_name', payload.name);
   localStorage.setItem('google_user_email', payload.email);
   localStorage.setItem('google_user_picture', payload.picture);
-  localStorage.setItem('google_id_token', response.credential);
+  // Redirect to app - Firebase will handle token management
   window.location.href = '/app.html';
 }
 
@@ -22,7 +24,6 @@ function handleGuest() {
   localStorage.setItem('google_user_name', 'Guest User');
   localStorage.setItem('google_user_email', 'guest@example.com');
   localStorage.setItem('google_user_picture', '');
-  localStorage.setItem('google_id_token', 'GUEST_TOKEN');
   localStorage.setItem('is_guest', 'true');
   window.location.href = '/app.html';
 }

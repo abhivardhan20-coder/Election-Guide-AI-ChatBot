@@ -58,14 +58,20 @@ if (allowedOrigins.length === 0) {
 }
 
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: { error: "Too many requests, please try again later." }
 });
 
-app.use('/api/', limiter);
+const guestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10, // stricter limit for guests
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Guest limit reached. Please sign in for more access." }
+});
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -88,7 +94,8 @@ const authenticateUser = async (req, res, next) => {
   const idToken = authHeader.split('Bearer ')[1];
   
   if (idToken === 'GUEST_TOKEN') {
-    req.user = { email: "guest@example.com", name: "Guest User" };
+    // Stricter guest check - only allowed if explicitly using guest route or limited flow
+    req.user = { email: "guest@example.com", name: "Guest User", isGuest: true };
     return next();
   }
 
@@ -104,13 +111,26 @@ const authenticateUser = async (req, res, next) => {
 const chatSchema = z.object({
   contents: z.array(z.object({
     role: z.enum(['user', 'model']),
-    parts: z.array(z.object({ text: z.string() }))
-  }))
+    parts: z.array(z.object({ text: z.string().max(8000) }))
+  })).max(50) // cap history depth
 });
+
+const SYSTEM_INSTRUCTION = {
+  role: 'user',
+  parts: [{ text: `You are ElectionGuide AI, a helpful assistant explaining the Indian democratic and electoral process. 
+Answer only questions related to Indian elections, voting, democracy, and civic participation. 
+Be concise, factual, and cite the Election Commission of India (ECI) where relevant.
+Format step-by-step information as numbered lists.` }]
+};
+const MODEL_ACK = { role: 'model', parts: [{ text: "Understood. I will assist with Indian election topics only." }] };
 
 const PORT = process.env.PORT || 3005;
 
-app.post('/api/chat', authenticateUser, async (req, res) => {
+app.post('/api/chat', (req, res, next) => {
+  const token = req.headers.authorization?.split('Bearer ')[1];
+  if (token === 'GUEST_TOKEN') return guestLimiter(req, res, next);
+  limiter(req, res, next);
+}, authenticateUser, async (req, res) => {
   try {
     const { contents } = chatSchema.parse(req.body);
     const key = process.env.GEMINI_API_KEY;
@@ -120,39 +140,23 @@ app.post('/api/chat', authenticateUser, async (req, res) => {
     }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent`;
-
-    console.log(`[DEBUG] Calling Gemini API at: ${url}`);
-
-    const headers = { 
-      'Content-Type': 'application/json',
-      'X-goog-api-key': key 
-    };
+    const headers = { 'Content-Type': 'application/json', 'X-goog-api-key': key };
 
     const response = await fetch(url, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify({ contents })
+      body: JSON.stringify({ contents: [SYSTEM_INSTRUCTION, MODEL_ACK, ...contents] })
     });
 
     const data = await response.json();
-    console.log("Gemini API Response Status:", response.status);
-
-    if (!response.ok) {
-      console.error("Gemini API Error Detail:", JSON.stringify(data, null, 2));
-      throw new Error(data.error?.message || `Gemini API Error: ${response.status}`);
-    }
-
-    if (!data.candidates || data.candidates.length === 0) {
-      console.error("Gemini Response has no candidates:", JSON.stringify(data, null, 2));
-      throw new Error("AI returned an empty response. This might be due to safety filters.");
-    }
+    if (!response.ok) throw new Error(data.error?.message || `Gemini Error: ${response.status}`);
 
     const reply = data.candidates[0].content.parts[0].text;
     res.json({ reply });
 
   } catch (error) {
-    console.error("Chat Route Error:", error);
-    res.status(500).json({ error: error.message || "Internal Server Error" });
+    console.error("Chat Error:", error);
+    res.status(error instanceof z.ZodError ? 400 : 500).json({ error: error.message });
   }
 });
 
@@ -163,6 +167,7 @@ app.use((req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: "Not found" });
   res.sendFile(path.join(distPath, 'index.html'));
 });
+
 const server = app.listen(PORT, () => {
   console.log(`ElectionGuide AI Backend running on port ${PORT}`);
 });

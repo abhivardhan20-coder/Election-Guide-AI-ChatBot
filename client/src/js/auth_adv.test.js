@@ -25,15 +25,19 @@ describe('Auth Module Advanced', () => {
   });
 
   it('should debounce syncProfileToFirebase', async () => {
-    localStorage.getItem.mockReturnValue('user@example.com');
+    localStorage.getItem.mockImplementation((key) => {
+      if (key === 'is_guest') return null;
+      if (key === 'google_user_email') return 'user@example.com';
+      return null;
+    });
+
     syncProfileToFirebase({}, localStorage);
     syncProfileToFirebase({}, localStorage);
     
-    // Should not have called setDoc yet due to debounce
     const { setDoc } = await import('firebase/firestore');
     expect(setDoc).not.toHaveBeenCalled();
     
-    vi.advanceTimersByTime(1100);
-    expect(setDoc).toHaveBeenCalled();
+    await vi.runAllTimersAsync();
+    expect(setDoc).toHaveBeenCalledTimes(1);
   });
 });

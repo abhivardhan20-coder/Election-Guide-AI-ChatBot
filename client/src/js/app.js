@@ -1,4 +1,5 @@
-import { db, auth } from '../../firebase.js';
+import { db, auth, analytics } from '../../firebase.js';
+import { logEvent } from "firebase/analytics";
 import { doc, getDoc } from 'firebase/firestore';
 import { GoogleAuthProvider, signInWithCredential, onAuthStateChanged } from 'firebase/auth';
 import { callGeminiAPI } from './api.js';
@@ -9,8 +10,23 @@ import {
 import { syncProfileToFirebase, signOut, initStorage } from './auth.js';
 import { state } from './state.js';
 
+const MODES = {
+  home: { prompt: "Explain how you can help." },
+  action: { prompt: "List 5 election prep actions." },
+  journey: { prompt: "Explain the election process journey step by step." },
+  timeline: { prompt: "Show the election timeline." },
+  voter: { prompt: "Explain voter registration steps." },
+  booth: { prompt: "Find my polling booth" },
+  eli5: { prompt: "Explain elections simply for a child." },
+  scenario: { prompt: "Explain hung parliament scenario." },
+  faq: { prompt: "Answer top 3 election FAQs." },
+  glossary: { prompt: "Define EVM, VVPAT, MCC." },
+  live: { prompt: "How to follow live updates?" }
+};
+
 async function sendText(text) {
   if (state.isBusy) return;
+  logEvent(analytics, 'message_sent', { char_count: text.length, is_guest: state.user.isGuest });
   appendMessage('user', text);
   state.setBusy(true);
   showTyping();
@@ -41,21 +57,36 @@ function sendMsg() {
 
 async function loadMode(mode, navEl) {
   if (state.isBusy) return;
+  logEvent(analytics, 'mode_selected', { mode, lang: state.lang });
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   if (navEl) navEl.classList.add('active');
-  const MODES = {
-    home: { prompt: "Explain how you can help." },
-    action: { prompt: "List 5 election prep actions." },
-    journey: { prompt: "Explain the election process journey step by step." },
-    timeline: { prompt: "Show the election timeline." },
-    voter: { prompt: "Explain voter registration steps." },
-    booth: { prompt: "How to find polling booth?" },
-    eli5: { prompt: "Explain elections simply for a child." },
-    scenario: { prompt: "Explain hung parliament scenario." },
-    faq: { prompt: "Answer top 3 election FAQs." },
-    glossary: { prompt: "Define EVM, VVPAT, MCC." },
-    live: { prompt: "How to follow live updates?" }
-  };
+
+  if (mode === 'booth') {
+    appendMessage('user', MODES.booth.prompt);
+    const loc = localStorage.getItem('user_location') || 'India';
+    const mapsQuery = encodeURIComponent(`election polling booth ${loc}`);
+    const embedUrl = `https://www.google.com/maps/embed/v1/search?key=${import.meta.env.VITE_MAPS_API_KEY}&q=${mapsQuery}`;
+    
+    const chat = document.getElementById('chat');
+    const wrapper = document.createElement('div');
+    wrapper.className = 'msg-row ai';
+    wrapper.innerHTML = `
+      <div class="avatar ai" aria-hidden="true">🗳️</div>
+      <div class="bubble" style="flex:1">
+        <p style="margin-bottom:12px">Here are polling locations near <strong>${loc}</strong>:</p>
+        <iframe
+          title="Polling booths near ${loc}"
+          width="100%" height="300"
+          style="border:0;border-radius:12px;"
+          loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"
+          src="${embedUrl}">
+        </iframe>
+      </div>`;
+    chat.appendChild(wrapper);
+    chat.scrollTop = chat.scrollHeight;
+    return;
+  }
+
   appendMessage('user', MODES[mode].prompt);
   state.setBusy(true); 
   showTyping();
@@ -68,7 +99,7 @@ async function loadMode(mode, navEl) {
   state.setBusy(false);
 }
 
-function setLang(l, btn) {
+function setLang(l) {
   state.setLang(l);
 }
 
@@ -91,21 +122,30 @@ function setupFocusTrap(modalId) {
 
   modal.addEventListener('keydown', function(e) {
     if (e.key === 'Tab') {
-      if (e.shiftKey) { // if shift key pressed for shift + tab combination
+      if (e.shiftKey) { 
         if (document.activeElement === firstFocusableElement) {
           lastFocusableElement.focus(); e.preventDefault();
         }
-      } else { // if tab key is pressed
+      } else { 
         if (document.activeElement === lastFocusableElement) {
           firstFocusableElement.focus(); e.preventDefault();
         }
       }
     }
     if (e.key === 'Escape') {
-      modal.classList.remove('active');
-      setTimeout(() => modal.style.display = 'none', 300);
+      closeModal(modalId);
     }
   });
+}
+
+function closeModal(modalId) {
+  const modal = document.getElementById(modalId);
+  const triggerEl = document.querySelector('[data-mode="home"]');
+  modal.classList.remove('active');
+  setTimeout(() => {
+    modal.style.display = 'none';
+    triggerEl?.focus(); // Return focus to the page
+  }, 300);
 }
 
 const initApp = async () => {
@@ -114,23 +154,26 @@ const initApp = async () => {
   
   initStorage(localStorage);
   
-  // React to state changes
+  // Cache DOM references
+  const sendBtn = document.getElementById('sendBtn');
+  const langBtns = [...document.querySelectorAll('.lang-btn')];
+  const userInput = document.getElementById('userInput');
+  const modal = document.getElementById('onboardingModal');
+
   state.subscribe((s) => {
     translateUI(s.lang, UI_STRINGS);
-    lockUI(s.isBusy, document.getElementById('sendBtn'));
-    document.querySelectorAll('.lang-btn').forEach(b => {
+    lockUI(s.isBusy, sendBtn);
+    langBtns.forEach(b => {
       b.classList.toggle('active', b.getAttribute('data-lang') === s.lang);
     });
   });
   
-  // Initial UI sync
   state.notify();
 
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       if (state.user.isGuest) return;
       const localAge = localStorage.getItem('user_age');
-      const modal = document.getElementById('onboardingModal');
       if (!localAge) {
         modal.style.display = 'flex';
         setupFocusTrap('onboardingModal');
@@ -151,24 +194,19 @@ const initApp = async () => {
         }
       } catch(e) { console.error("Firestore Error:", e); }
     } else {
-      const idToken = localStorage.getItem('google_id_token');
-      if (idToken && !state.user.isGuest) {
-        try {
-          const credential = GoogleAuthProvider.credential(idToken);
-          await signInWithCredential(auth, credential);
-        } catch(e) { console.error("Firebase Auth failed:", e); }
-      } else if (!state.user.isGuest) {
+      const isGuest = localStorage.getItem('is_guest') === 'true';
+      if (!isGuest) {
         window.location.href = '/';
       }
     }
   });
 
   // Event Listeners
-  document.getElementById('sendBtn').addEventListener('click', sendMsg);
-  document.getElementById('userInput').addEventListener('input', (e) => autoResize(e.target));
-  document.getElementById('userInput').addEventListener('keydown', (e) => {
+  sendBtn.addEventListener('click', sendMsg);
+  userInput.addEventListener('input', (e) => autoResize(e.target));
+  userInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
-    if (e.ctrlKey && e.key === 'l') { // Keyboard shortcut for language rotation
+    if (e.ctrlKey && e.key === 'l') { 
       const langs = ['en', 'hi', 'ta', 'te', 'ml', 'kn'];
       const nextIdx = (langs.indexOf(state.lang) + 1) % langs.length;
       state.setLang(langs[nextIdx]);
@@ -188,9 +226,7 @@ const initApp = async () => {
      localStorage.setItem('user_age', age);
      localStorage.setItem('user_location', loc);
      localStorage.setItem('user_status', status);
-     const modal = document.getElementById('onboardingModal');
-     modal.classList.remove('active');
-     setTimeout(() => { modal.style.display = 'none'; }, 300);
+     closeModal('onboardingModal');
      syncProfileToFirebase(db, localStorage).catch(e => console.error(e));
      initStorage(localStorage);
   });
@@ -200,9 +236,9 @@ const initApp = async () => {
     if (mode) el.addEventListener('click', () => { if(mode==='home') location.reload(); else loadMode(mode, el); });
   });
 
-  document.querySelectorAll('.lang-btn').forEach(btn => {
+  langBtns.forEach(btn => {
     const code = btn.getAttribute('data-lang');
-    if (code) btn.addEventListener('click', () => setLang(code, btn));
+    if (code) btn.addEventListener('click', () => setLang(code));
   });
 };
 
