@@ -10,12 +10,15 @@ import {
 import { syncProfileToFirebase, signOut, initStorage } from './auth.js';
 import { state } from './state.js';
 
-// Configure DOMPurify to ensure all AI-generated links open in a new tab for SPA stability
+// Configure DOMPurify to ensure external AI-generated links open safely in a new tab
 DOMPurify.addHook('afterSanitizeAttributes', function(node) {
-  // Strictly target anchor tags to prevent modifying forms or base elements
   if (node.tagName === 'A') {
-    node.setAttribute('target', '_blank');
-    node.setAttribute('rel', 'noopener noreferrer');
+    const href = node.getAttribute('href') || '';
+    // Only apply blank targets to external links to preserve internal routing integrity
+    if (href.startsWith('http')) {
+      node.setAttribute('target', '_blank');
+      node.setAttribute('rel', 'noopener noreferrer');
+    }
   }
 });
 
@@ -35,7 +38,7 @@ const MODES = {
   live: { prompt: "How to follow live updates?" }
 };
 
-// DRY helper function for AI response rendering
+// DRY helper function for AI response rendering with batched layout reflows
 function renderAIResponse(data) {
   hideTyping();
   
@@ -44,7 +47,15 @@ function renderAIResponse(data) {
   
   appendMessage('ai', cleanHTML);
   const chips = data.suggestedQuestions || [];
-  appendChips(chips, state.isBusy, sendText);
+  if (chips.length > 0) {
+    appendChips(chips, state.isBusy, sendText);
+  }
+
+  // Trigger a single layout reflow/scroll after all elements are appended
+  const chat = document.getElementById('chat');
+  requestAnimationFrame(() => {
+    chat.scrollTop = chat.scrollHeight;
+  });
 }
 
 async function sendText(text) {
@@ -87,9 +98,17 @@ async function loadMode(mode, navEl) {
 
   if (mode === 'booth') {
     appendMessage('user', MODES.booth.prompt);
-    const loc = localStorage.getItem('user_location') || 'India';
+    let loc = localStorage.getItem('user_location') || '';
+    
+    // Validate location specificity before making an external API call
+    if (loc.trim().length < 3 || loc.toLowerCase() === 'india') {
+      appendMessage('ai', 'To find your nearest polling booth, I need a more specific location. Please update your city or district in your Profile.');
+      document.getElementById('userLocation').focus();
+      return;
+    }
+
     const safeLoc = DOMPurify.sanitize(loc);
-    const mapsQuery = encodeURIComponent(`election polling booth ${loc}`);
+    const mapsQuery = encodeURIComponent(`election polling booth in ${safeLoc}, India`);
     const embedUrl = `https://www.google.com/maps/embed/v1/search?key=${import.meta.env.VITE_MAPS_API_KEY}&q=${mapsQuery}`;
     
     const wrapper = document.createElement('div');
@@ -107,7 +126,7 @@ async function loadMode(mode, navEl) {
         </iframe>
       </div>`;
     chat.appendChild(wrapper);
-    chat.scrollTop = chat.scrollHeight;
+    requestAnimationFrame(() => { chat.scrollTop = chat.scrollHeight; });
     return;
   }
 
@@ -119,7 +138,6 @@ async function loadMode(mode, navEl) {
     renderAIResponse(data);
   } catch(e) { 
     hideTyping(); 
-    // Unify error handling to gracefully catch expired sessions during navigation
     if (e.message.includes("Unauthorized")) {
       appendMessage('ai', `⚠️ Your session expired. Please refresh the page.`);
     } else {
@@ -267,13 +285,24 @@ const initApp = async () => {
          errorMsg = document.createElement('p');
          errorMsg.id = 'modal-error';
          errorMsg.setAttribute('role', 'alert');
+         errorMsg.setAttribute('tabindex', '-1'); // Make focusable for screen readers
          errorMsg.style.color = '#ef4444';
          errorMsg.style.fontSize = '13px';
          errorMsg.style.marginBottom = '12px';
+         errorMsg.style.outline = 'none';
          const btn = document.getElementById('ui-modal-save');
          btn.parentNode.insertBefore(errorMsg, btn);
        }
        errorMsg.textContent = "Please fill out all fields to continue.";
+       
+       // Accessibility focus shift to notify the user of the error
+       errorMsg.focus();
+       
+       // Highlight the first empty field visually to guide the user
+       if (!age) document.getElementById('onboardingAge').focus();
+       else if (!loc) document.getElementById('onboardingLocation').focus();
+       else document.getElementById('onboardingStatus').focus();
+       
        return;
      }
 

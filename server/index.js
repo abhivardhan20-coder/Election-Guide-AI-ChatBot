@@ -191,9 +191,19 @@ app.post('/api/chat', (req, res, next) => {
 
     // Safely extract JSON even if the AI prefixes it with conversational text
     const jsonMatch = rawText.match(/```(?:json)?\n?([\s\S]*?)\n?```/);
-    rawText = jsonMatch ? jsonMatch[1].trim() : rawText.trim();
-    
-    const data = JSON.parse(rawText);
+    let data;
+    try {
+      data = JSON.parse(rawText);
+      // Validate schema presence to ensure the client receives required fields
+      if (!data.reply || !data.suggestedQuestions) throw new Error("Missing required fields in AI response");
+    } catch (parseError) {
+      console.error("Failed to parse Gemini output:", rawText);
+      // Fallback payload to prevent client-side crashes and maintain interaction
+      data = {
+        reply: "I formulated an answer, but I encountered an error formatting it. Could you please rephrase your question?",
+        suggestedQuestions: ["What is the voting process?", "How do I find my polling booth?"]
+      };
+    }
 
     res.json(data);
 
