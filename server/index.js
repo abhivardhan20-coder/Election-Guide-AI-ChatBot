@@ -191,7 +191,10 @@ app.post('/api/chat', (req, res, next) => {
 
   } catch (error) {
     console.error("Chat Error:", error);
-    res.status(error instanceof z.ZodError ? 400 : 500).json({ error: error.message });
+    const isValidationErr = error instanceof z.ZodError;
+    res.status(isValidationErr ? 400 : 500).json({ 
+      error: isValidationErr ? error.message : "An internal server error occurred. Please try again later." 
+    });
   }
 });
 

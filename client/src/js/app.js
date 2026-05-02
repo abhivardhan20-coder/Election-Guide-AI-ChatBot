@@ -10,6 +10,14 @@ import {
 import { syncProfileToFirebase, signOut, initStorage } from './auth.js';
 import { state } from './state.js';
 
+// Configure DOMPurify to ensure all AI-generated links open in a new tab for SPA stability
+DOMPurify.addHook('afterSanitizeAttributes', function(node) {
+  if ('target' in node) {
+    node.setAttribute('target', '_blank');
+    node.setAttribute('rel', 'noopener noreferrer');
+  }
+});
+
 const MODES = {
   home: { prompt: "Explain how you can help." },
   action: { prompt: "List 5 election prep actions." },

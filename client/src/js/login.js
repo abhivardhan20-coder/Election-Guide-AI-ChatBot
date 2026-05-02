@@ -19,7 +19,6 @@ function handleCredentialResponse(response) {
   localStorage.setItem('google_user_email', payload.email);
   localStorage.setItem('google_user_picture', payload.picture);
   
-  // Authenticate with Firebase BEFORE redirecting to prevent redirect loops on app.html
   const credential = GoogleAuthProvider.credential(response.credential);
   signInWithCredential(auth, credential)
     .then(() => {
@@ -38,10 +37,12 @@ function handleGuestLogin() {
   window.location.href = '/app.html';
 }
 
-window.onload = function () {
+const initLogin = () => {
   google.accounts.id.initialize({
     client_id: GOOGLE_CLIENT_ID,
-    callback: handleCredentialResponse
+    callback: handleCredentialResponse,
+    itp_support: true,
+    use_fedcm_for_prompt: false
   });
   google.accounts.id.renderButton(
     document.getElementById("google-signin-btn"),
@@ -51,3 +52,10 @@ window.onload = function () {
   const guestBtn = document.getElementById('guest-btn');
   if (guestBtn) guestBtn.addEventListener('click', handleGuestLogin);
 };
+
+// Safe event attachment using DOMContentLoaded instead of window.onload
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initLogin);
+} else {
+  initLogin();
+}
