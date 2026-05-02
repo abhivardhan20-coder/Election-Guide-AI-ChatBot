@@ -1,0 +1,17 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Restrict access to authenticated users
+    match /users/{userId} {
+      // Allow users to read and write only their own document
+      // Note: We use the user's email as the document ID in this app's current logic
+      allow read, write: if request.auth != null && (request.auth.uid == userId || request.auth.token.email == userId);
+    }
+    
+    // Global fallback: deny everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

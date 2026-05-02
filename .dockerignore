@@ -1,0 +1,7 @@
+node_modules/
+.git/
+.env
+*/.env
+*/node_modules/
+client/dist/
+.npm/
