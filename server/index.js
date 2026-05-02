@@ -33,6 +33,8 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT) {
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 // Request Logger
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);

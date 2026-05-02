@@ -14,7 +14,7 @@ export const initStorage = (localStorage) => {
   return user;
 };
 
-export async function syncProfileToFirebase(db, auth, localStorage) {
+export async function syncProfileToFirebase(db, localStorage) {
   if (!auth.currentUser || localStorage.getItem('is_guest')) return;
   
   const email = auth.currentUser.email; 

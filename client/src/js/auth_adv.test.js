@@ -39,10 +39,9 @@ describe('Auth Module Advanced', () => {
       return null;
     });
 
-    const mockAuth = { currentUser: { email: 'user@example.com' } };
-
-    syncProfileToFirebase({}, mockAuth, localStorage);
-    syncProfileToFirebase({}, mockAuth, localStorage);
+    // Removed mockAuth from call as per new signature
+    syncProfileToFirebase({}, localStorage);
+    syncProfileToFirebase({}, localStorage);
     
     const { setDoc } = await import('firebase/firestore');
     expect(setDoc).not.toHaveBeenCalled();

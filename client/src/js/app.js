@@ -112,7 +112,7 @@ async function saveProfile(btn) {
   localStorage.setItem('user_age', document.getElementById('userAge').value);
   localStorage.setItem('user_location', document.getElementById('userLocation').value);
   localStorage.setItem('user_status', document.getElementById('userStatus').value);
-  await syncProfileToFirebase(db, auth, localStorage);
+  await syncProfileToFirebase(db, localStorage);
   btn.textContent = 'Saved!';
   btn.classList.add('saved');
   setTimeout(() => { btn.textContent = 'Save Profile'; btn.classList.remove('saved'); }, 2000);
@@ -253,7 +253,7 @@ const initApp = async () => {
      localStorage.setItem('user_location', loc);
      localStorage.setItem('user_status', status);
      closeModal('onboardingModal');
-     syncProfileToFirebase(db, auth, localStorage).catch(e => console.error(e));
+     syncProfileToFirebase(db, localStorage).catch(e => console.error(e));
      initStorage(localStorage);
   });
 
