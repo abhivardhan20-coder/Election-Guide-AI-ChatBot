@@ -51,6 +51,15 @@ export const UI_STRINGS = {
   }
 };
 
+const uiElements = {};
+export function clearCache() {
+  for (const key in uiElements) delete uiElements[key];
+}
+function getCachedElement(id) {
+  if (!uiElements[id]) uiElements[id] = document.getElementById(id);
+  return uiElements[id];
+}
+
 export function translateUI(l, strings) {
   const s = strings[l] || strings['en'];
   document.documentElement.setAttribute('lang', l);
@@ -81,19 +90,20 @@ export function translateUI(l, strings) {
   };
 
   Object.keys(mapping).forEach(id => {
-    const el = document.getElementById(id);
+    const el = getCachedElement(id);
     if (el) {
       if (el.tagName === 'INPUT') el.placeholder = mapping[id];
       else el.textContent = mapping[id];
     }
   });
   
-  document.getElementById('userInput').placeholder = s.inputPlaceholder;
+  const up = getCachedElement('userInput');
+  if (up) up.placeholder = s.inputPlaceholder;
 }
 
 export function appendMessage(role, content) {
-  const chat = document.getElementById('chat');
-  const banner = document.getElementById('welcome-banner');
+  const chat = getCachedElement('chat');
+  const banner = getCachedElement('welcome-banner');
   if (banner) banner.style.display = 'none';
 
   const row = document.createElement('div');
@@ -115,12 +125,11 @@ export function appendMessage(role, content) {
 }
 
 export function showTyping() {
-  const chat = document.getElementById('chat');
+  const chat = getCachedElement('chat');
   const row = document.createElement('div');
   row.className = 'msg-row ai';
   row.id = 'typing-indicator';
   row.setAttribute('role', 'status');
-  row.setAttribute('aria-label', 'AI is typing');
   row.innerHTML = `
     <div class="avatar ai" aria-hidden="true">🗳️</div>
     <div class="bubble">
@@ -129,6 +138,7 @@ export function showTyping() {
         <div class="typing-dot"></div>
         <div class="typing-dot"></div>
       </div>
+      <span class="sr-only">The AI is typing a response...</span>
     </div>`;
   chat.appendChild(row);
   chat.scrollTop = chat.scrollHeight;
@@ -140,7 +150,7 @@ export function hideTyping() {
 }
 
 export function appendChips(chips, isBusy, sendText) {
-  const chat = document.getElementById('chat');
+  const chat = getCachedElement('chat');
   const container = document.createElement('div');
   container.className = 'chips-container';
   

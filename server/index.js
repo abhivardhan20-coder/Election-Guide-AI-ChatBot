@@ -7,6 +7,7 @@ import admin from 'firebase-admin';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 dotenv.config();
 
@@ -42,7 +43,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-      "script-src": ["'self'", "https://accounts.google.com", "https://cdn.jsdelivr.net", "'unsafe-inline'", "'unsafe-eval'"],
+      "script-src": ["'self'", "https://accounts.google.com", "https://cdn.jsdelivr.net", "'unsafe-inline'"],
       "connect-src": ["'self'", "https://generativelanguage.googleapis.com", "https://*.googleapis.com", "https://*.firebaseio.com", "https://*.firestore.googleapis.com", "https://accounts.google.com"],
       "img-src": ["'self'", "data:", "https://*.googleusercontent.com"],
       "frame-src": ["'self'", "https://accounts.google.com"],
@@ -67,7 +68,7 @@ const limiter = rateLimit({
 
 const guestLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10, // stricter limit for guests
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Guest limit reached. Please sign in for more access." }
@@ -94,7 +95,6 @@ const authenticateUser = async (req, res, next) => {
   const idToken = authHeader.split('Bearer ')[1];
   
   if (idToken === 'GUEST_TOKEN') {
-    // Stricter guest check - only allowed if explicitly using guest route or limited flow
     req.user = { email: "guest@example.com", name: "Guest User", isGuest: true };
     return next();
   }
@@ -112,17 +112,13 @@ const chatSchema = z.object({
   contents: z.array(z.object({
     role: z.enum(['user', 'model']),
     parts: z.array(z.object({ text: z.string().max(8000) }))
-  })).max(50) // cap history depth
+  })).max(50)
 });
 
-const SYSTEM_INSTRUCTION = {
-  role: 'user',
-  parts: [{ text: `You are ElectionGuide AI, a helpful assistant explaining the Indian democratic and electoral process. 
+const SYSTEM_INSTRUCTION = `You are ElectionGuide AI, a helpful assistant explaining the Indian democratic and electoral process. 
 Answer only questions related to Indian elections, voting, democracy, and civic participation. 
 Be concise, factual, and cite the Election Commission of India (ECI) where relevant.
-Format step-by-step information as numbered lists.` }]
-};
-const MODEL_ACK = { role: 'model', parts: [{ text: "Understood. I will assist with Indian election topics only." }] };
+Format step-by-step information as numbered lists.`;
 
 const PORT = process.env.PORT || 3005;
 
@@ -135,23 +131,24 @@ app.post('/api/chat', (req, res, next) => {
     const { contents } = chatSchema.parse(req.body);
     const key = process.env.GEMINI_API_KEY;
     
-    if (!key) {
-      return res.status(500).json({ error: "Gemini API key not configured" });
-    }
+    if (!key) return res.status(500).json({ error: "Gemini API key not configured" });
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent`;
-    const headers = { 'Content-Type': 'application/json', 'X-goog-api-key': key };
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify({ contents: [SYSTEM_INSTRUCTION, MODEL_ACK, ...contents] })
+    const genAI = new GoogleGenerativeAI(key);
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      systemInstruction: SYSTEM_INSTRUCTION
     });
 
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error?.message || `Gemini Error: ${response.status}`);
+    const history = contents.slice(0, -1).map(msg => ({
+      role: msg.role,
+      parts: msg.parts
+    }));
+    const latestMessage = contents[contents.length - 1].parts[0].text;
 
-    const reply = data.candidates[0].content.parts[0].text;
+    const chat = model.startChat({ history });
+    const result = await chat.sendMessage(latestMessage);
+    const reply = result.response.text();
+
     res.json({ reply });
 
   } catch (error) {

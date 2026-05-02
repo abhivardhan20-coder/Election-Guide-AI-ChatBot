@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { callGeminiAPI } from './api.js';
 
+// Mock the Firebase auth module entirely
+vi.mock('firebase/auth', () => ({
+  GoogleAuthProvider: {
+    credential: vi.fn().mockReturnValue('MOCK_CREDENTIAL')
+  },
+  signInWithCredential: vi.fn().mockResolvedValue({
+    user: { getIdToken: () => Promise.resolve('MOCK_NEW_TOKEN') }
+  })
+}));
+
 describe('API Module', () => {
   beforeEach(() => {
     global.fetch = vi.fn();
@@ -50,11 +60,17 @@ describe('API Module', () => {
     const mockAuth = {
       currentUser: null // missing
     };
-    // Mocking Firebase modules is complex, but we can check if it throws or tries to fetch
-    // Actually, in the code: if (!auth.currentUser) { ... await signInWithCredential(...) }
-    // We need to mock signInWithCredential.
-    await expect(callGeminiAPI('Hi', [], mockAuth, localStorage)).rejects.toThrow(); 
-    // It throws because signInWithCredential is not imported/mocked correctly in the test env yet
+    
+    fetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ reply: 'Re-auth success' })
+    });
+
+    // With the new mock, it shouldn't throw anymore.
+    // However, the current code in api.js THROWS if currentUser is missing 
+    // due to Fix 3 in the previous turn. 
+    // Wait, let's check api.js content.
+    await expect(callGeminiAPI('Hi', [], mockAuth, localStorage)).rejects.toThrow("Unauthorized: session expired");
   });
 
   it('should throw error on API failure', async () => {

@@ -72,12 +72,12 @@ async function loadMode(mode, navEl) {
     wrapper.className = 'msg-row ai';
     wrapper.innerHTML = `
       <div class="avatar ai" aria-hidden="true">🗳️</div>
-      <div class="bubble" style="flex:1">
-        <p style="margin-bottom:12px">Here are polling locations near <strong>${loc}</strong>:</p>
+      <div class="bubble bubble--booth">
+        <p class="booth-intro">Here are polling locations near <strong>${loc}</strong>:</p>
         <iframe
           title="Polling booths near ${loc}"
+          class="booth-map"
           width="100%" height="300"
-          style="border:0;border-radius:12px;"
           loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"
           src="${embedUrl}">
         </iframe>

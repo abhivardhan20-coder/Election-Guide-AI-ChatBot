@@ -284,3 +284,42 @@ body {
   justify-content: center;
   min-height: 40px;
 }
+
+.login-guest-footer {
+  margin-top: 24px; 
+  border-top: 1px solid var(--border); 
+  padding-top: 24px;
+}
+
+.btn-guest {
+  width: 100%; 
+  padding: 12px; 
+  background: transparent; 
+  border: 1px solid var(--border); 
+  border-radius: 50px; 
+  color: var(--text-muted); 
+  cursor: pointer; 
+  font-weight: 500; 
+  transition: all 0.2s;
+}
+.btn-guest:hover {
+  background: var(--surface);
+  border-color: var(--primary);
+  color: var(--text);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.bubble--booth { flex: 1; }
+.booth-intro { margin-bottom: 12px; }
+.booth-map { border: 0; border-radius: 12px; }

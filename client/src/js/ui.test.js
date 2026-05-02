@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { translateUI, appendMessage, showTyping, hideTyping, autoResize } from './ui.js';
+import { translateUI, appendMessage, showTyping, hideTyping, autoResize, clearCache } from './ui.js';
 
 describe('UI Module', () => {
   beforeEach(() => {
+    clearCache();
     document.body.innerHTML = `
       <div id="ui-subtitle"></div>
       <div id="chat"></div>
