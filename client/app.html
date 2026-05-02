@@ -610,7 +610,7 @@
   function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } }
   function generateContextChips(r) { return ['Tell me more', 'What is the next step?']; }
 
-  window.onload = async () => {
+  const initApp = async () => {
     const email = localStorage.getItem('google_user_email');
     if (!email) { window.location.href = '/'; return; }
     
@@ -704,6 +704,13 @@
       if (code) btn.addEventListener('click', () => setLang(code, btn));
     });
   };
+
+  // Run initialization
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+  } else {
+    initApp();
+  }
 </script>
 </body>
 </html>
