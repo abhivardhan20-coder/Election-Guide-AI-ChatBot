@@ -121,6 +121,8 @@ async function saveProfile(btn) {
 function setupFocusTrap(modalId) {
   const modal = document.getElementById(modalId);
   const focusableElements = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+  if (focusableElements.length === 0) return;
+  
   const firstFocusableElement = focusableElements[0];
   const lastFocusableElement = focusableElements[focusableElements.length - 1];
 
@@ -163,6 +165,9 @@ const initApp = async () => {
   const userInput = document.getElementById('userInput');
   const modal = document.getElementById('onboardingModal');
 
+  // Set up the focus trap ONCE during initialization to avoid memory leaks
+  setupFocusTrap('onboardingModal');
+
   state.subscribe((s) => {
     translateUI(s.lang, UI_STRINGS);
     lockUI(s.isBusy, sendBtn);
@@ -185,7 +190,7 @@ const initApp = async () => {
       const localAge = localStorage.getItem('user_age');
       if (!localAge) {
         modal.style.display = 'flex';
-        setupFocusTrap('onboardingModal');
+        // Listener is already attached, just trigger visibility and focus
         setTimeout(() => { modal.classList.add('active'); document.getElementById('onboardingAge').focus(); }, 10);
       }
       try {

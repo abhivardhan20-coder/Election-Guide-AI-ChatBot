@@ -48,6 +48,12 @@ describe('API Module', () => {
     }));
   });
 
+  it('should throw an offline error on network failure', async () => {
+    fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+
+    await expect(callGeminiAPI('Hi', [], {}, true)).rejects.toThrow('Network error: Please check your internet connection and try again.');
+  });
+
   it('should throw error if currentUser is missing in authenticated mode', async () => {
     const mockAuth = {
       currentUser: null

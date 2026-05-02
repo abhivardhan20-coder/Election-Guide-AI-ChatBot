@@ -1,3 +1,6 @@
+import { auth } from '../../firebase.js';
+import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 if (!GOOGLE_CLIENT_ID) throw new Error("VITE_GOOGLE_CLIENT_ID is not set");
 
@@ -12,49 +15,39 @@ function parseJwt(token) {
 
 function handleCredentialResponse(response) {
   const payload = parseJwt(response.credential);
-  // Save user metadata, but NOT the raw ID token in localStorage
   localStorage.setItem('google_user_name', payload.name);
   localStorage.setItem('google_user_email', payload.email);
   localStorage.setItem('google_user_picture', payload.picture);
-  // Redirect to app - Firebase will handle token management
-  window.location.href = '/app.html';
+  
+  // Authenticate with Firebase BEFORE redirecting to prevent redirect loops on app.html
+  const credential = GoogleAuthProvider.credential(response.credential);
+  signInWithCredential(auth, credential)
+    .then(() => {
+      window.location.href = '/app.html';
+    })
+    .catch((error) => {
+      console.error("Firebase Auth Error:", error);
+      alert("Authentication failed. Please try again.");
+    });
 }
 
-function handleGuest() {
+function handleGuestLogin() {
+  localStorage.setItem('is_guest', 'true');
   localStorage.setItem('google_user_name', 'Guest User');
   localStorage.setItem('google_user_email', 'guest@example.com');
-  localStorage.setItem('google_user_picture', '');
-  localStorage.setItem('is_guest', 'true');
   window.location.href = '/app.html';
 }
 
-const initLogin = () => {
-  if (localStorage.getItem('google_user_email')) {
-    window.location.href = '/app.html';
-    return;
-  }
-
-  if (typeof google !== 'undefined') {
-    google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: handleCredentialResponse,
-      itp_support: true,
-      use_fedcm_for_prompt: false
-    });
-    google.accounts.id.renderButton(
-      document.getElementById("google-signin-btn"),
-      { theme: "outline", size: "large", shape: "pill", width: "100%" }
-    );
-    google.accounts.id.prompt();
-  } else {
-    console.error("Google Sign-In script not loaded.");
-  }
-
-  document.getElementById('guest-btn').addEventListener('click', handleGuest);
+window.onload = function () {
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleCredentialResponse
+  });
+  google.accounts.id.renderButton(
+    document.getElementById("google-signin-btn"),
+    { theme: "outline", size: "large", shape: "pill", width: 340 }
+  );
+  
+  const guestBtn = document.getElementById('guest-btn');
+  if (guestBtn) guestBtn.addEventListener('click', handleGuestLogin);
 };
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initLogin);
-} else {
-  initLogin();
-}
