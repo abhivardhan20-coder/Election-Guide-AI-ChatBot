@@ -9,7 +9,8 @@ vi.mock('firebase/firestore', () => ({
 
 vi.mock('../../firebase.js', () => ({
   db: {},
-  auth: { currentUser: { email: 'user@example.com' } },
+  // Added a mock UID to satisfy the updated syncProfileToFirebase logic which uses UIDs for document paths
+  auth: { currentUser: { email: 'user@example.com', uid: 'mock-uid-12345' } },
   analytics: {}
 }));
 
@@ -39,7 +40,6 @@ describe('Auth Module Advanced', () => {
       return null;
     });
 
-    // Removed mockAuth from call as per new signature
     syncProfileToFirebase({}, localStorage);
     syncProfileToFirebase({}, localStorage);
     

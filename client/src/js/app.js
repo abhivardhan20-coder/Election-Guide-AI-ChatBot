@@ -117,7 +117,15 @@ async function loadMode(mode, navEl) {
   try {
     const data = await callGeminiAPI(MODES[mode].prompt, state.historyLog, auth, state.user.isGuest);
     renderAIResponse(data);
-  } catch(e) { hideTyping(); appendMessage('ai', `⚠️ Error: ${e.message}`); }
+  } catch(e) { 
+    hideTyping(); 
+    // Unify error handling to gracefully catch expired sessions during navigation
+    if (e.message.includes("Unauthorized")) {
+      appendMessage('ai', `⚠️ Your session expired. Please refresh the page.`);
+    } else {
+      appendMessage('ai', `⚠️ Error: ${e.message}`);
+    }
+  }
   state.setBusy(false);
 }
 

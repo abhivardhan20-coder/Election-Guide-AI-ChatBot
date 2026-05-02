@@ -48,7 +48,7 @@ app.use(helmet({
       "script-src": ["'self'", "https://accounts.google.com", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
       "connect-src": ["'self'", "https://generativelanguage.googleapis.com", "https://*.googleapis.com", "https://*.firebaseio.com", "https://*.firestore.googleapis.com", "https://accounts.google.com"],
       "img-src": ["'self'", "data:", "https://*.googleusercontent.com"],
-      "frame-src": ["'self'", "https://accounts.google.com"],
+      "frame-src": ["'self'", "https://accounts.google.com", "https://www.google.com"],
     },
   },
   crossOriginOpenerPolicy: false,
