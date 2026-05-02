@@ -169,7 +169,12 @@ app.post('/api/chat', (req, res, next) => {
 
     const chat = model.startChat({ history });
     const result = await chat.sendMessage(latestMessage);
-    const data = JSON.parse(result.response.text());
+    
+    let rawText = result.response.text();
+    // Safely extract JSON even if the AI wraps it in markdown formatting
+    rawText = rawText.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+    
+    const data = JSON.parse(rawText);
 
     res.json(data);
 

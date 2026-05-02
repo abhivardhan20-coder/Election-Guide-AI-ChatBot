@@ -67,6 +67,7 @@ async function loadMode(mode, navEl) {
   if (mode === 'booth') {
     appendMessage('user', MODES.booth.prompt);
     const loc = localStorage.getItem('user_location') || 'India';
+    const safeLoc = DOMPurify.sanitize(loc);
     const mapsQuery = encodeURIComponent(`election polling booth ${loc}`);
     const embedUrl = `https://www.google.com/maps/embed/v1/search?key=${import.meta.env.VITE_MAPS_API_KEY}&q=${mapsQuery}`;
     
@@ -76,9 +77,9 @@ async function loadMode(mode, navEl) {
     wrapper.innerHTML = `
       <div class="avatar ai" aria-hidden="true">🗳️</div>
       <div class="bubble bubble--booth">
-        <p class="booth-intro">Here are polling locations near <strong>${loc}</strong>:</p>
+        <p class="booth-intro">Here are polling locations near <strong>${safeLoc}</strong>:</p>
         <iframe
-          title="Polling booths near ${loc}"
+          title="Polling booths near ${safeLoc}"
           class="booth-map"
           width="100%" height="300"
           loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"

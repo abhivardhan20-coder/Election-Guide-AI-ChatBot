@@ -43,5 +43,10 @@ export async function callGeminiAPI(text, historyLog, auth, isGuest) {
   historyLog.push({ role: 'user', content: text });
   historyLog.push({ role: 'ai', content: data.reply });
 
+  // Enforce memory limit on the client side
+  while (historyLog.length > MAX_HISTORY) {
+    historyLog.shift();
+  }
+
   return data;
 }
