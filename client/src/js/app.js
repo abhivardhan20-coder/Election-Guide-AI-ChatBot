@@ -37,8 +37,10 @@ const MODES = {
 // DRY helper function for AI response rendering
 function renderAIResponse(data) {
   hideTyping();
-  // Explicitly allow the target attribute so the hook can process it safely
-  const cleanHTML = DOMPurify.sanitize(marked.parse(data.reply || data), { ADD_ATTR: ['target'] });
+  
+  // Strictly enforce a string fallback to prevent marked() from throwing a fatal object type error
+  const cleanHTML = DOMPurify.sanitize(marked.parse(data.reply || ''), { ADD_ATTR: ['target'] });
+  
   appendMessage('ai', cleanHTML);
   const chips = data.suggestedQuestions || [];
   appendChips(chips, state.isBusy, sendText);
@@ -294,7 +296,14 @@ if (document.readyState === 'loading') {
 }
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
+  const registerSW = () => {
     navigator.serviceWorker.register('/sw.js').catch(err => console.error('SW Reg failed:', err));
-  });
+  };
+  
+  // Account for deferred <script type="module"> execution to ensure SW registers reliably
+  if (document.readyState === 'complete') {
+    registerSW();
+  } else {
+    window.addEventListener('load', registerSW);
+  }
 }
