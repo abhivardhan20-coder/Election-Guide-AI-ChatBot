@@ -177,13 +177,3 @@ export function autoResize(textarea) {
   textarea.style.height = 'auto';
   textarea.style.height = textarea.scrollHeight + 'px';
 }
-
-export function generateContextChips(reply) {
-  const chips = [];
-  if (/register|registration/i.test(reply)) chips.push("How do I register to vote?");
-  if (/booth|polling/i.test(reply))         chips.push("Find my polling booth");
-  if (/EVM|VVPAT/i.test(reply))             chips.push("Explain EVM and VVPAT");
-  if (/hung parliament/i.test(reply))        chips.push("What happens in a hung parliament?");
-  chips.push("Tell me more", "What's the next step?");
-  return chips.slice(0, 4);
-}

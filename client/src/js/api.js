@@ -1,7 +1,6 @@
 const MAX_HISTORY = 20;
 
-export async function callGeminiAPI(text, historyLog, auth, localStorage) {
-  const isGuest = localStorage.getItem('is_guest') === 'true';
+export async function callGeminiAPI(text, historyLog, auth, isGuest) {
   let idToken = 'GUEST_TOKEN';
 
   if (!isGuest) {
@@ -44,5 +43,5 @@ export async function callGeminiAPI(text, historyLog, auth, localStorage) {
   historyLog.push({ role: 'user', content: text });
   historyLog.push({ role: 'ai', content: data.reply });
 
-  return data.reply;
+  return data;
 }

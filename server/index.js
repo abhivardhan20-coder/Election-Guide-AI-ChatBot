@@ -7,7 +7,7 @@ import admin from 'firebase-admin';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 
 dotenv.config();
 
@@ -43,7 +43,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-      "script-src": ["'self'", "https://accounts.google.com", "https://cdn.jsdelivr.net", "'unsafe-inline'"],
+      "script-src": ["'self'", "https://accounts.google.com", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "'unsafe-inline'"],
       "connect-src": ["'self'", "https://generativelanguage.googleapis.com", "https://*.googleapis.com", "https://*.firebaseio.com", "https://*.firestore.googleapis.com", "https://accounts.google.com"],
       "img-src": ["'self'", "data:", "https://*.googleusercontent.com"],
       "frame-src": ["'self'", "https://accounts.google.com"],
@@ -118,7 +118,25 @@ const chatSchema = z.object({
 const SYSTEM_INSTRUCTION = `You are ElectionGuide AI, a helpful assistant explaining the Indian democratic and electoral process. 
 Answer only questions related to Indian elections, voting, democracy, and civic participation. 
 Be concise, factual, and cite the Election Commission of India (ECI) where relevant.
-Format step-by-step information as numbered lists.`;
+Format step-by-step information as numbered lists.
+Always provide 3-4 suggested follow-up questions that help the user explore the topic deeper.`;
+
+const responseSchema = {
+  description: "The AI's response including text and suggested follow-up questions",
+  type: SchemaType.OBJECT,
+  properties: {
+    reply: {
+      type: SchemaType.STRING,
+      description: "The main answer to the user's question, formatted in Markdown."
+    },
+    suggestedQuestions: {
+      type: SchemaType.ARRAY,
+      description: "3-4 context-aware follow-up questions.",
+      items: { type: SchemaType.STRING }
+    }
+  },
+  required: ["reply", "suggestedQuestions"]
+};
 
 const PORT = process.env.PORT || 3005;
 
@@ -136,7 +154,11 @@ app.post('/api/chat', (req, res, next) => {
     const genAI = new GoogleGenerativeAI(key);
     const model = genAI.getGenerativeModel({ 
       model: "gemini-1.5-flash",
-      systemInstruction: SYSTEM_INSTRUCTION
+      systemInstruction: SYSTEM_INSTRUCTION,
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: responseSchema
+      }
     });
 
     const history = contents.slice(0, -1).map(msg => ({
@@ -147,9 +169,9 @@ app.post('/api/chat', (req, res, next) => {
 
     const chat = model.startChat({ history });
     const result = await chat.sendMessage(latestMessage);
-    const reply = result.response.text();
+    const data = JSON.parse(result.response.text());
 
-    res.json({ reply });
+    res.json(data);
 
   } catch (error) {
     console.error("Chat Error:", error);

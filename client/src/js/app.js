@@ -5,7 +5,7 @@ import { GoogleAuthProvider, signInWithCredential, onAuthStateChanged } from 'fi
 import { callGeminiAPI } from './api.js';
 import { 
   UI_STRINGS, translateUI, appendMessage, appendChips, 
-  showTyping, hideTyping, lockUI, autoResize, generateContextChips 
+  showTyping, hideTyping, lockUI, autoResize
 } from './ui.js';
 import { syncProfileToFirebase, signOut, initStorage } from './auth.js';
 import { state } from './state.js';
@@ -31,10 +31,13 @@ async function sendText(text) {
   state.setBusy(true);
   showTyping();
   try {
-    const reply = await callGeminiAPI(text, state.historyLog, auth, localStorage);
+    const data = await callGeminiAPI(text, state.historyLog, auth, state.user.isGuest);
     hideTyping();
-    appendMessage('ai', marked.parse(reply));
-    appendChips(generateContextChips(reply), state.isBusy, sendText);
+    // data is now { reply, suggestedQuestions }
+    const cleanHTML = DOMPurify.sanitize(marked.parse(data.reply || data)); // Fallback for old API if needed
+    appendMessage('ai', cleanHTML);
+    const chips = data.suggestedQuestions || [];
+    appendChips(chips, state.isBusy, sendText);
   } catch(e) { 
     hideTyping(); 
     if (e.message.includes("Unauthorized")) {
@@ -91,10 +94,12 @@ async function loadMode(mode, navEl) {
   state.setBusy(true); 
   showTyping();
   try {
-    const reply = await callGeminiAPI(MODES[mode].prompt, state.historyLog, auth, localStorage);
+    const data = await callGeminiAPI(MODES[mode].prompt, state.historyLog, auth, state.user.isGuest);
     hideTyping();
-    appendMessage('ai', marked.parse(reply));
-    appendChips(generateContextChips(reply), state.isBusy, sendText);
+    const cleanHTML = DOMPurify.sanitize(marked.parse(data.reply || data));
+    appendMessage('ai', cleanHTML);
+    const chips = data.suggestedQuestions || [];
+    appendChips(chips, state.isBusy, sendText);
   } catch(e) { hideTyping(); appendMessage('ai', `⚠️ Error: ${e.message}`); }
   state.setBusy(false);
 }
@@ -113,7 +118,6 @@ async function saveProfile(btn) {
   setTimeout(() => { btn.textContent = 'Save Profile'; btn.classList.remove('saved'); }, 2000);
 }
 
-// Focus Trap Implementation
 function setupFocusTrap(modalId) {
   const modal = document.getElementById(modalId);
   const focusableElements = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
@@ -144,7 +148,7 @@ function closeModal(modalId) {
   modal.classList.remove('active');
   setTimeout(() => {
     modal.style.display = 'none';
-    triggerEl?.focus(); // Return focus to the page
+    triggerEl?.focus();
   }, 300);
 }
 
@@ -154,7 +158,6 @@ const initApp = async () => {
   
   initStorage(localStorage);
   
-  // Cache DOM references
   const sendBtn = document.getElementById('sendBtn');
   const langBtns = [...document.querySelectorAll('.lang-btn')];
   const userInput = document.getElementById('userInput');
@@ -164,7 +167,9 @@ const initApp = async () => {
     translateUI(s.lang, UI_STRINGS);
     lockUI(s.isBusy, sendBtn);
     langBtns.forEach(b => {
-      b.classList.toggle('active', b.getAttribute('data-lang') === s.lang);
+      const isActive = b.getAttribute('data-lang') === s.lang;
+      b.classList.toggle('active', isActive);
+      b.setAttribute('aria-pressed', isActive.toString());
     });
   });
   
@@ -201,7 +206,6 @@ const initApp = async () => {
     }
   });
 
-  // Event Listeners
   sendBtn.addEventListener('click', sendMsg);
   userInput.addEventListener('input', (e) => autoResize(e.target));
   userInput.addEventListener('keydown', (e) => {
