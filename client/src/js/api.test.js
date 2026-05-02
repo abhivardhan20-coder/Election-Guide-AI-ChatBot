@@ -49,6 +49,30 @@ describe('API Module', () => {
     }));
   });
 
+  it('should shift history array if it starts with an AI message after trimming', async () => {
+    const mockAuth = {
+      currentUser: { getIdToken: vi.fn().mockResolvedValue('MOCK_TOKEN') }
+    };
+    fetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ reply: 'Auth AI Reply', suggestedQuestions: [] })
+    });
+
+    // Create a 21-item array. When sliced to 20 (MAX_HISTORY), item 0 is dropped.
+    // If item 0 is 'user', the sliced array starts with item 1 ('ai').
+    const historyLog = Array.from({ length: 21 }, (_, i) => ({
+      role: i % 2 === 0 ? 'user' : 'ai',
+      content: `Message ${i}`
+    }));
+
+    await callGeminiAPI('New Message', historyLog, mockAuth, false);
+
+    // Verify the payload sent to fetch starts with 'user' (role: 'user'), confirming the shift occurred
+    const fetchArgs = fetch.mock.calls[0][1];
+    const parsedBody = JSON.parse(fetchArgs.body);
+    expect(parsedBody.contents[0].role).toBe('user');
+  });
+
   it('should throw an offline error on network failure', async () => {
     fetch.mockRejectedValue(new TypeError('Failed to fetch'));
 

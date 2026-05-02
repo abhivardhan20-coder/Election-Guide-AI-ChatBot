@@ -213,7 +213,8 @@ const initApp = async () => {
         setTimeout(() => { modal.classList.add('active'); document.getElementById('onboardingAge').focus(); }, 10);
       }
       try {
-        const snap = await getDoc(doc(db, "users", user.email));
+        // Fetch the profile using the immutable UID instead of email
+        const snap = await getDoc(doc(db, "users", user.uid));
         if (snap.exists()) {
           const d = snap.data();
           if (d.age) {

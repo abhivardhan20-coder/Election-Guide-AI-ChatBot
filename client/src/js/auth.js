@@ -17,7 +17,8 @@ export const initStorage = (localStorage) => {
 export async function syncProfileToFirebase(db, localStorage) {
   if (!auth.currentUser || localStorage.getItem('is_guest')) return;
   
-  const email = auth.currentUser.email; 
+  // Use the immutable UID instead of the email to ensure data persistence across email changes
+  const uid = auth.currentUser.uid; 
   
   // Extract values immediately before the delay to avoid race conditions
   const age = document.getElementById('userAge')?.value || '';
@@ -28,7 +29,7 @@ export async function syncProfileToFirebase(db, localStorage) {
   syncTimeout = setTimeout(async () => {
     try {
       console.log("Syncing profile to Firebase...");
-      await setDoc(doc(db, "users", email), {
+      await setDoc(doc(db, "users", uid), {
         age,
         location,
         status,

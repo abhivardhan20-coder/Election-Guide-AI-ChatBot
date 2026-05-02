@@ -52,7 +52,7 @@ const initLogin = () => {
     client_id: GOOGLE_CLIENT_ID,
     callback: handleCredentialResponse,
     itp_support: true,
-    use_fedcm_for_prompt: false
+    use_fedcm_for_prompt: true // Mandated for modern browser compatibility and 3rd-party cookie deprecation
   });
   google.accounts.id.renderButton(
     document.getElementById("google-signin-btn"),
