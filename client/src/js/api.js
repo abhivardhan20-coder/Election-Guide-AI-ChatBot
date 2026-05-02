@@ -13,6 +13,12 @@ export async function callGeminiAPI(text, historyLog, auth, isGuest) {
   // Trim history to prevent unbounded growth
   const trimmedHistory = historyLog.slice(-MAX_HISTORY);
   
+  // Gemini strictly requires the history array to start with a user message.
+  // If slicing starts with an AI response, the API will reject it with a 400 error.
+  if (trimmedHistory.length > 0 && trimmedHistory[0].role === 'ai') {
+    trimmedHistory.shift();
+  }
+  
   // Format history for Gemini
   const contents = trimmedHistory.map(msg => ({
     role: msg.role === 'ai' ? 'model' : 'user',

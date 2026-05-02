@@ -37,7 +37,8 @@ const MODES = {
 // DRY helper function for AI response rendering
 function renderAIResponse(data) {
   hideTyping();
-  const cleanHTML = DOMPurify.sanitize(marked.parse(data.reply || data));
+  // Explicitly allow the target attribute so the hook can process it safely
+  const cleanHTML = DOMPurify.sanitize(marked.parse(data.reply || data), { ADD_ATTR: ['target'] });
   appendMessage('ai', cleanHTML);
   const chips = data.suggestedQuestions || [];
   appendChips(chips, state.isBusy, sendText);

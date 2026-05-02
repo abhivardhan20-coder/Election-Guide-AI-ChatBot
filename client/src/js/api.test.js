@@ -12,6 +12,7 @@ vi.mock('firebase/auth', () => ({
 
 describe('API Module', () => {
   beforeEach(() => {
+    vi.clearAllMocks(); // Prevent mock history leakage between tests
     global.fetch = vi.fn();
     global.localStorage = {
       getItem: vi.fn(),
