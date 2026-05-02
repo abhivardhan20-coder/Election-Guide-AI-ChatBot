@@ -33,8 +33,7 @@ async function sendText(text) {
   try {
     const data = await callGeminiAPI(text, state.historyLog, auth, state.user.isGuest);
     hideTyping();
-    // data is now { reply, suggestedQuestions }
-    const cleanHTML = DOMPurify.sanitize(marked.parse(data.reply || data)); // Fallback for old API if needed
+    const cleanHTML = DOMPurify.sanitize(marked.parse(data.reply || data));
     appendMessage('ai', cleanHTML);
     const chips = data.suggestedQuestions || [];
     appendChips(chips, state.isBusy, sendText);
@@ -113,7 +112,7 @@ async function saveProfile(btn) {
   localStorage.setItem('user_age', document.getElementById('userAge').value);
   localStorage.setItem('user_location', document.getElementById('userLocation').value);
   localStorage.setItem('user_status', document.getElementById('userStatus').value);
-  await syncProfileToFirebase(db, localStorage);
+  await syncProfileToFirebase(db, auth, localStorage);
   btn.textContent = 'Saved!';
   btn.classList.add('saved');
   setTimeout(() => { btn.textContent = 'Save Profile'; btn.classList.remove('saved'); }, 2000);
@@ -224,7 +223,22 @@ const initApp = async () => {
      const age = document.getElementById('onboardingAge').value;
      const loc = document.getElementById('onboardingLocation').value;
      const status = document.getElementById('onboardingStatus').value;
-     if(!age || !loc || !status) return alert("Please fill all fields");
+     
+     if(!age || !loc || !status) {
+       let errorMsg = document.getElementById('modal-error');
+       if (!errorMsg) {
+         errorMsg = document.createElement('p');
+         errorMsg.id = 'modal-error';
+         errorMsg.style.color = '#ef4444';
+         errorMsg.style.fontSize = '13px';
+         errorMsg.style.marginBottom = '12px';
+         const btn = document.getElementById('ui-modal-save');
+         btn.parentNode.insertBefore(errorMsg, btn);
+       }
+       errorMsg.textContent = "Please fill out all fields to continue.";
+       return;
+     }
+
      document.getElementById('userAge').value = age;
      document.getElementById('userLocation').value = loc;
      document.getElementById('userStatus').value = status;
@@ -232,7 +246,7 @@ const initApp = async () => {
      localStorage.setItem('user_location', loc);
      localStorage.setItem('user_status', status);
      closeModal('onboardingModal');
-     syncProfileToFirebase(db, localStorage).catch(e => console.error(e));
+     syncProfileToFirebase(db, auth, localStorage).catch(e => console.error(e));
      initStorage(localStorage);
   });
 

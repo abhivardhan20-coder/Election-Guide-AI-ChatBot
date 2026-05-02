@@ -1,38 +1,48 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { syncProfileToFirebase, signOut, initStorage } from './auth.js';
+import { syncProfileToFirebase } from './auth.js';
 
-// Mock Firebase
 vi.mock('firebase/firestore', () => ({
   doc: vi.fn(),
-  getDoc: vi.fn(),
-  setDoc: vi.fn().mockResolvedValue({})
+  setDoc: vi.fn(),
+  getFirestore: vi.fn()
+}));
+
+vi.mock('../../firebase.js', () => ({
+  db: {},
+  auth: { currentUser: { email: 'user@example.com' } },
+  analytics: {}
 }));
 
 describe('Auth Module Advanced', () => {
+  let localStorage;
+
   beforeEach(() => {
     vi.useFakeTimers();
-    global.localStorage = {
+    vi.clearAllMocks();
+    localStorage = {
       getItem: vi.fn(),
-      setItem: vi.fn(),
-      removeItem: vi.fn()
+      setItem: vi.fn()
     };
-    global.window = { location: { href: '' } };
+    
+    // Mock DOM elements
     document.body.innerHTML = `
-      <input id="userAge" value="20">
-      <input id="userLocation" value="Delhi">
-      <input id="userStatus" value="Registered">
+      <input id="userAge" value="30">
+      <input id="userLocation" value="Berlin">
+      <select id="userStatus"><option value="voted">voted</option></select>
     `;
+    document.getElementById('userStatus').value = 'voted';
   });
 
   it('should debounce syncProfileToFirebase', async () => {
     localStorage.getItem.mockImplementation((key) => {
       if (key === 'is_guest') return null;
-      if (key === 'google_user_email') return 'user@example.com';
       return null;
     });
 
-    syncProfileToFirebase({}, localStorage);
-    syncProfileToFirebase({}, localStorage);
+    const mockAuth = { currentUser: { email: 'user@example.com' } };
+
+    syncProfileToFirebase({}, mockAuth, localStorage);
+    syncProfileToFirebase({}, mockAuth, localStorage);
     
     const { setDoc } = await import('firebase/firestore');
     expect(setDoc).not.toHaveBeenCalled();

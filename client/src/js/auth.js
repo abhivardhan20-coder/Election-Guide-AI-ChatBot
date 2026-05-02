@@ -1,12 +1,24 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
+import { signOut as firebaseSignOut } from 'firebase/auth';
+import { auth } from '../../firebase.js';
 
 let syncTimeout;
 
-export async function syncProfileToFirebase(db, localStorage) {
-  const email = localStorage.getItem('google_user_email');
-  if (!email || localStorage.getItem('is_guest')) return;
+export const initStorage = (localStorage) => {
+  const user = {
+    name: localStorage.getItem('google_user_name') || 'Guest User',
+    email: localStorage.getItem('google_user_email') || '',
+    picture: localStorage.getItem('google_user_picture') || '',
+    isGuest: localStorage.getItem('is_guest') === 'true'
+  };
+  return user;
+};
+
+export async function syncProfileToFirebase(db, auth, localStorage) {
+  if (!auth.currentUser || localStorage.getItem('is_guest')) return;
   
-  // Debounce sync to avoid spamming Firestore
+  const email = auth.currentUser.email; 
+  
   clearTimeout(syncTimeout);
   syncTimeout = setTimeout(async () => {
     try {
@@ -21,23 +33,15 @@ export async function syncProfileToFirebase(db, localStorage) {
     } catch(e) { 
       console.error("Firebase Sync Error:", e);
     }
-  }, 1000); // 1s debounce
+  }, 1000); 
 }
 
-export function signOut(localStorage) {
-  localStorage.removeItem('google_user_email');
-  localStorage.removeItem('google_user_name');
-  localStorage.removeItem('google_user_picture');
-  localStorage.removeItem('google_id_token');
-  localStorage.removeItem('is_guest');
-  window.location.href = '/';
-}
-
-export function initStorage(localStorage) {
-  const pAge = localStorage.getItem('user_age');
-  const pLoc = localStorage.getItem('user_location');
-  const pStat = localStorage.getItem('user_status');
-  if(pAge) document.getElementById('userAge').value = pAge;
-  if(pLoc) document.getElementById('userLocation').value = pLoc;
-  if(pStat) document.getElementById('userStatus').value = pStat;
-}
+export const signOut = async (localStorage) => {
+  try {
+    await firebaseSignOut(auth);
+    localStorage.clear();
+    window.location.href = '/';
+  } catch (error) {
+    console.error("Sign Out Error:", error);
+  }
+};

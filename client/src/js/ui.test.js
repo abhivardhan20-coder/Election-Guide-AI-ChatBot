@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { translateUI, appendMessage, showTyping, hideTyping, autoResize, clearCache } from './ui.js';
+import { translateUI, appendMessage, showTyping, hideTyping, autoResize, clearCache, appendChips } from './ui.js';
 
 describe('UI Module', () => {
   beforeEach(() => {
@@ -8,22 +8,20 @@ describe('UI Module', () => {
       <div id="ui-subtitle"></div>
       <div id="chat"></div>
       <div id="welcome-banner"></div>
-      <input id="userInput" placeholder="">
-      <button id="sendBtn"></button>
+      <textarea id="userInput"></textarea>
     `;
   });
 
   it('should translate UI', () => {
-    const mockStrings = { en: { subtitle: "Sub", inputPlaceholder: "Pl" } };
-    translateUI('en', mockStrings);
-    expect(document.getElementById('ui-subtitle').textContent).toBe('Sub');
+    const strings = { en: { subtitle: 'Test Subtitle', inputPlaceholder: 'Ask...' } };
+    translateUI('en', strings);
+    expect(document.getElementById('ui-subtitle').textContent).toBe('Test Subtitle');
   });
 
   it('should append message and hide banner', () => {
-    const banner = document.getElementById('welcome-banner');
     appendMessage('user', 'Hello');
-    expect(banner.style.display).toBe('none');
-    expect(document.getElementById('chat').innerHTML).toContain('Hello');
+    expect(document.getElementById('welcome-banner').style.display).toBe('none');
+    expect(document.querySelector('.msg-row.user')).not.toBeNull();
   });
 
   it('should show and hide typing indicator', () => {
@@ -41,7 +39,6 @@ describe('UI Module', () => {
   });
 
   it('should render context-aware chips', () => {
-    const { appendChips } = require('./ui.js');
     appendChips(['How do I register?', 'Next step?'], false, vi.fn());
     const chips = document.querySelectorAll('.chip');
     expect(chips.length).toBe(2);

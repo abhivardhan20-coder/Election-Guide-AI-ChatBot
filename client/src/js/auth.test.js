@@ -1,33 +1,43 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { signOut, initStorage } from './auth.js';
 
+vi.mock('firebase/auth', () => ({
+  signOut: vi.fn().mockResolvedValue(),
+  getAuth: vi.fn()
+}));
+
+vi.mock('../../firebase.js', () => ({
+  auth: {}
+}));
+
 describe('Auth Module', () => {
+  let localStorage;
+
   beforeEach(() => {
-    global.localStorage = {
+    localStorage = {
       getItem: vi.fn(),
       setItem: vi.fn(),
-      removeItem: vi.fn()
+      removeItem: vi.fn(),
+      clear: vi.fn()
     };
-    global.window = { location: { href: '' } };
-    document.body.innerHTML = `
-      <input id="userAge">
-      <input id="userLocation">
-      <input id="userStatus">
-    `;
+    delete window.location;
+    window.location = { href: '' };
   });
 
-  it('should remove items on sign out', () => {
-    signOut(localStorage);
-    expect(localStorage.removeItem).toHaveBeenCalledWith('google_user_email');
+  it('should remove items on sign out', async () => {
+    await signOut(localStorage);
+    expect(localStorage.clear).toHaveBeenCalled();
     expect(window.location.href).toBe('/');
   });
 
   it('should initialize storage values', () => {
     localStorage.getItem.mockImplementation((key) => {
-      if (key === 'user_age') return '25';
+      if (key === 'google_user_name') return 'Test User';
+      if (key === 'google_user_email') return 'test@example.com';
       return null;
     });
-    initStorage(localStorage);
-    expect(document.getElementById('userAge').value).toBe('25');
+    const user = initStorage(localStorage);
+    expect(user.name).toBe('Test User');
+    expect(user.email).toBe('test@example.com');
   });
 });
