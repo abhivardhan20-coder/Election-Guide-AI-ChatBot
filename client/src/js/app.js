@@ -7,21 +7,18 @@ import {
   showTyping, hideTyping, lockUI, autoResize, generateContextChips 
 } from './ui.js';
 import { syncProfileToFirebase, signOut, initStorage } from './auth.js';
-
-let lang = 'en';
-let historyLog = [];
-let isBusy = false;
+import { state } from './state.js';
 
 async function sendText(text) {
-  if (isBusy) return;
+  if (state.isBusy) return;
   appendMessage('user', text);
-  lockUI(true, document.getElementById('sendBtn'));
+  state.setBusy(true);
   showTyping();
   try {
-    const reply = await callGeminiAPI(text, historyLog, auth, localStorage);
+    const reply = await callGeminiAPI(text, state.historyLog, auth, localStorage);
     hideTyping();
     appendMessage('ai', marked.parse(reply));
-    appendChips(generateContextChips(reply), isBusy, sendText);
+    appendChips(generateContextChips(reply), state.isBusy, sendText);
   } catch(e) { 
     hideTyping(); 
     if (e.message.includes("Unauthorized")) {
@@ -30,7 +27,7 @@ async function sendText(text) {
       appendMessage('ai', `⚠️ Error: ${e.message}`);
     }
   }
-  lockUI(false, document.getElementById('sendBtn'));
+  state.setBusy(false);
 }
 
 function sendMsg() {
@@ -43,7 +40,7 @@ function sendMsg() {
 }
 
 async function loadMode(mode, navEl) {
-  if (isBusy) return;
+  if (state.isBusy) return;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   if (navEl) navEl.classList.add('active');
   const MODES = {
@@ -60,21 +57,19 @@ async function loadMode(mode, navEl) {
     live: { prompt: "How to follow live updates?" }
   };
   appendMessage('user', MODES[mode].prompt);
-  lockUI(true, document.getElementById('sendBtn')); showTyping();
+  state.setBusy(true); 
+  showTyping();
   try {
-    const reply = await callGeminiAPI(MODES[mode].prompt, historyLog, auth, localStorage);
+    const reply = await callGeminiAPI(MODES[mode].prompt, state.historyLog, auth, localStorage);
     hideTyping();
     appendMessage('ai', marked.parse(reply));
-    appendChips(generateContextChips(reply), isBusy, sendText);
+    appendChips(generateContextChips(reply), state.isBusy, sendText);
   } catch(e) { hideTyping(); appendMessage('ai', `⚠️ Error: ${e.message}`); }
-  lockUI(false, document.getElementById('sendBtn'));
+  state.setBusy(false);
 }
 
 function setLang(l, btn) {
-  lang = l;
-  document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  translateUI(l, UI_STRINGS);
+  state.setLang(l);
 }
 
 async function saveProfile(btn) {
@@ -87,21 +82,59 @@ async function saveProfile(btn) {
   setTimeout(() => { btn.textContent = 'Save Profile'; btn.classList.remove('saved'); }, 2000);
 }
 
+// Focus Trap Implementation
+function setupFocusTrap(modalId) {
+  const modal = document.getElementById(modalId);
+  const focusableElements = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+  const firstFocusableElement = focusableElements[0];
+  const lastFocusableElement = focusableElements[focusableElements.length - 1];
+
+  modal.addEventListener('keydown', function(e) {
+    if (e.key === 'Tab') {
+      if (e.shiftKey) { // if shift key pressed for shift + tab combination
+        if (document.activeElement === firstFocusableElement) {
+          lastFocusableElement.focus(); e.preventDefault();
+        }
+      } else { // if tab key is pressed
+        if (document.activeElement === lastFocusableElement) {
+          firstFocusableElement.focus(); e.preventDefault();
+        }
+      }
+    }
+    if (e.key === 'Escape') {
+      modal.classList.remove('active');
+      setTimeout(() => modal.style.display = 'none', 300);
+    }
+  });
+}
+
 const initApp = async () => {
-  const email = localStorage.getItem('google_user_email');
+  const email = state.user.email;
   if (!email) { window.location.href = '/'; return; }
   
   initStorage(localStorage);
-  translateUI('en', UI_STRINGS);
+  
+  // React to state changes
+  state.subscribe((s) => {
+    translateUI(s.lang, UI_STRINGS);
+    lockUI(s.isBusy, document.getElementById('sendBtn'));
+    document.querySelectorAll('.lang-btn').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-lang') === s.lang);
+    });
+  });
+  
+  // Initial UI sync
+  state.notify();
 
   onAuthStateChanged(auth, async (user) => {
     if (user) {
-      if (localStorage.getItem('is_guest')) return;
+      if (state.user.isGuest) return;
       const localAge = localStorage.getItem('user_age');
       const modal = document.getElementById('onboardingModal');
       if (!localAge) {
         modal.style.display = 'flex';
-        setTimeout(() => modal.classList.add('active'), 10);
+        setupFocusTrap('onboardingModal');
+        setTimeout(() => { modal.classList.add('active'); document.getElementById('onboardingAge').focus(); }, 10);
       }
       try {
         const snap = await getDoc(doc(db, "users", user.email));
@@ -119,12 +152,12 @@ const initApp = async () => {
       } catch(e) { console.error("Firestore Error:", e); }
     } else {
       const idToken = localStorage.getItem('google_id_token');
-      if (idToken && !localStorage.getItem('is_guest')) {
+      if (idToken && !state.user.isGuest) {
         try {
           const credential = GoogleAuthProvider.credential(idToken);
           await signInWithCredential(auth, credential);
         } catch(e) { console.error("Firebase Auth failed:", e); }
-      } else if (!localStorage.getItem('is_guest')) {
+      } else if (!state.user.isGuest) {
         window.location.href = '/';
       }
     }
@@ -135,7 +168,13 @@ const initApp = async () => {
   document.getElementById('userInput').addEventListener('input', (e) => autoResize(e.target));
   document.getElementById('userInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+    if (e.ctrlKey && e.key === 'l') { // Keyboard shortcut for language rotation
+      const langs = ['en', 'hi', 'ta', 'te', 'ml', 'kn'];
+      const nextIdx = (langs.indexOf(state.lang) + 1) % langs.length;
+      state.setLang(langs[nextIdx]);
+    }
   });
+  
   document.getElementById('ui-signout').addEventListener('click', () => signOut(localStorage));
   document.getElementById('ui-save-profile').addEventListener('click', (e) => saveProfile(e.target));
   document.getElementById('ui-modal-save').addEventListener('click', async () => {

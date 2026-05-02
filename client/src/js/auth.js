@@ -1,21 +1,27 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
+let syncTimeout;
+
 export async function syncProfileToFirebase(db, localStorage) {
   const email = localStorage.getItem('google_user_email');
   if (!email || localStorage.getItem('is_guest')) return;
-  try {
-    console.log("Syncing profile to Firebase...");
-    await setDoc(doc(db, "users", email), {
-      age: document.getElementById('userAge').value,
-      location: document.getElementById('userLocation').value,
-      status: document.getElementById('userStatus').value,
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
-    console.log("Profile synced successfully.");
-  } catch(e) { 
-    console.error("Firebase Sync Error:", e);
-    alert("Note: Profile saved locally, but failed to sync with the cloud.");
-  }
+  
+  // Debounce sync to avoid spamming Firestore
+  clearTimeout(syncTimeout);
+  syncTimeout = setTimeout(async () => {
+    try {
+      console.log("Syncing profile to Firebase...");
+      await setDoc(doc(db, "users", email), {
+        age: document.getElementById('userAge').value,
+        location: document.getElementById('userLocation').value,
+        status: document.getElementById('userStatus').value,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      console.log("Profile synced successfully.");
+    } catch(e) { 
+      console.error("Firebase Sync Error:", e);
+    }
+  }, 1000); // 1s debounce
 }
 
 export function signOut(localStorage) {

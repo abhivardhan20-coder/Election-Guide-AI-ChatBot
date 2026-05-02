@@ -52,12 +52,20 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-const allowedOrigins = [
-  'http://localhost:3005',
-  'http://localhost:3001',
-  'http://localhost:5173',
-  'http://localhost:5180',
-].filter(Boolean);
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
+if (allowedOrigins.length === 0) {
+  allowedOrigins.push('http://localhost:3005', 'http://localhost:5180');
+}
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  message: { error: "Too many requests, please try again later." }
+});
+
+app.use('/api/', limiter);
 
 app.use(cors({
   origin: (origin, callback) => {
