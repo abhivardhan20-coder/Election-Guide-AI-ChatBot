@@ -31,6 +31,16 @@ cp .env.example .env
 
 Open `client/.env` and fill in your Firebase configuration and Google Client ID.
 
+🚨 **CRITICAL SECURITY NOTE FOR GOOGLE MAPS API:**
+Because `VITE_MAPS_API_KEY` is exposed to the frontend for the Maps Embed API, you **must** restrict this key in the Google Cloud Console.
+
+1. Go to **Google Cloud Console** -> **APIs & Services** -> **Credentials**.
+2. Select your **Maps API Key**.
+3. Under **"Application restrictions"**, choose **HTTP referrers (web sites)**.
+4. Add your production domain (e.g., `https://your-app-domain.com/*`).
+
+Failure to do this allows unauthorized domains to use your API key and deplete your quota.
+
 ### 2. Server Environment Variables
 
 Navigate to the `server` directory and copy the example environment file:

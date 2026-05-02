@@ -140,6 +140,24 @@ const responseSchema = {
   required: ["reply", "suggestedQuestions"]
 };
 
+// Initialize Gemini globally to save memory and CPU cycles per request
+const key = process.env.GEMINI_API_KEY;
+let model = null;
+
+if (key) {
+  const genAI = new GoogleGenerativeAI(key);
+  model = genAI.getGenerativeModel({ 
+    model: "gemini-1.5-flash",
+    systemInstruction: SYSTEM_INSTRUCTION,
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: responseSchema
+    }
+  });
+} else {
+  console.warn("WARNING: GEMINI_API_KEY is not configured.");
+}
+
 const PORT = process.env.PORT || 3005;
 
 app.post('/api/chat', (req, res, next) => {
@@ -148,20 +166,9 @@ app.post('/api/chat', (req, res, next) => {
   limiter(req, res, next);
 }, authenticateUser, async (req, res) => {
   try {
-    const { contents } = chatSchema.parse(req.body);
-    const key = process.env.GEMINI_API_KEY;
+    if (!model) return res.status(500).json({ error: "Gemini API is unavailable" });
     
-    if (!key) return res.status(500).json({ error: "Gemini API key not configured" });
-
-    const genAI = new GoogleGenerativeAI(key);
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
-      systemInstruction: SYSTEM_INSTRUCTION,
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: responseSchema
-      }
-    });
+    const { contents } = chatSchema.parse(req.body);
 
     const history = contents.slice(0, -1).map(msg => ({
       role: msg.role,

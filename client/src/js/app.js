@@ -18,6 +18,8 @@ DOMPurify.addHook('afterSanitizeAttributes', function(node) {
   }
 });
 
+let elementBeforeModal = null; // Store focus state for accessibility
+
 const MODES = {
   home: { prompt: "Explain how you can help." },
   action: { prompt: "List 5 election prep actions." },
@@ -32,6 +34,15 @@ const MODES = {
   live: { prompt: "How to follow live updates?" }
 };
 
+// DRY helper function for AI response rendering
+function renderAIResponse(data) {
+  hideTyping();
+  const cleanHTML = DOMPurify.sanitize(marked.parse(data.reply || data));
+  appendMessage('ai', cleanHTML);
+  const chips = data.suggestedQuestions || [];
+  appendChips(chips, state.isBusy, sendText);
+}
+
 async function sendText(text) {
   if (state.isBusy) return;
   logEvent(analytics, 'message_sent', { char_count: text.length, is_guest: state.user.isGuest });
@@ -40,11 +51,7 @@ async function sendText(text) {
   showTyping();
   try {
     const data = await callGeminiAPI(text, state.historyLog, auth, state.user.isGuest);
-    hideTyping();
-    const cleanHTML = DOMPurify.sanitize(marked.parse(data.reply || data));
-    appendMessage('ai', cleanHTML);
-    const chips = data.suggestedQuestions || [];
-    appendChips(chips, state.isBusy, sendText);
+    renderAIResponse(data);
   } catch(e) { 
     hideTyping(); 
     if (e.message.includes("Unauthorized")) {
@@ -103,11 +110,7 @@ async function loadMode(mode, navEl) {
   showTyping();
   try {
     const data = await callGeminiAPI(MODES[mode].prompt, state.historyLog, auth, state.user.isGuest);
-    hideTyping();
-    const cleanHTML = DOMPurify.sanitize(marked.parse(data.reply || data));
-    appendMessage('ai', cleanHTML);
-    const chips = data.suggestedQuestions || [];
-    appendChips(chips, state.isBusy, sendText);
+    renderAIResponse(data);
   } catch(e) { hideTyping(); appendMessage('ai', `⚠️ Error: ${e.message}`); }
   state.setBusy(false);
 }
@@ -147,18 +150,19 @@ function setupFocusTrap(modalId) {
       }
     }
     if (e.key === 'Escape') {
-      closeModal(modalId);
+      closeModal(modalId, elementBeforeModal);
     }
   });
 }
 
-function closeModal(modalId) {
+function closeModal(modalId, triggerEl = null) {
   const modal = document.getElementById(modalId);
-  const triggerEl = document.querySelector('[data-mode="home"]');
+  const fallbackEl = document.querySelector('[data-mode="home"]');
   modal.classList.remove('active');
   setTimeout(() => {
     modal.style.display = 'none';
-    triggerEl?.focus();
+    if (triggerEl) triggerEl.focus();
+    else if (fallbackEl) fallbackEl.focus();
   }, 300);
 }
 
@@ -198,6 +202,7 @@ const initApp = async () => {
       const localAge = localStorage.getItem('user_age');
       if (!localAge) {
         modal.style.display = 'flex';
+        elementBeforeModal = document.activeElement; // Capture focus
         // Listener is already attached, just trigger visibility and focus
         setTimeout(() => { modal.classList.add('active'); document.getElementById('onboardingAge').focus(); }, 10);
       }
@@ -265,7 +270,7 @@ const initApp = async () => {
      localStorage.setItem('user_age', age);
      localStorage.setItem('user_location', loc);
      localStorage.setItem('user_status', status);
-     closeModal('onboardingModal');
+     closeModal('onboardingModal', elementBeforeModal);
      syncProfileToFirebase(db, localStorage).catch(e => console.error(e));
      initStorage(localStorage);
   });
