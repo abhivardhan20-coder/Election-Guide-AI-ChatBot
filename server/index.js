@@ -2,12 +2,11 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { z } from 'zod';
 import admin from 'firebase-admin';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import { initGemini, handleChat } from './controllers/chatController.js';
 
 dotenv.config();
 
@@ -97,7 +96,7 @@ const authenticateUser = async (req, res, next) => {
   const idToken = authHeader.split('Bearer ')[1];
   
   if (idToken === 'GUEST_TOKEN') {
-    req.user = { email: "guest@example.com", name: "Guest User", isGuest: true };
+    req.user = { email: "guest@example.com", name: "Guest User", isGuest: true, uid: "guest-uid" };
     return next();
   }
 
@@ -110,111 +109,19 @@ const authenticateUser = async (req, res, next) => {
   }
 };
 
-const chatSchema = z.object({
-  contents: z.array(z.object({
-    role: z.enum(['user', 'model']),
-    parts: z.array(z.object({ text: z.string().max(8000) }))
-  })).max(50)
-});
+// Initialize Gemini
+initGemini(process.env.GEMINI_API_KEY);
 
-const SYSTEM_INSTRUCTION = `You are ElectionGuide AI, a helpful assistant explaining the Indian democratic and electoral process. 
-Answer only questions related to Indian elections, voting, democracy, and civic participation. 
-Be concise, factual, and cite the Election Commission of India (ECI) where relevant.
-Format step-by-step information as numbered lists.
-Always provide 3-4 suggested follow-up questions that help the user explore the topic deeper.`;
+// API Routes
+const router = express.Router();
 
-const responseSchema = {
-  description: "The AI's response including text and suggested follow-up questions",
-  type: SchemaType.OBJECT,
-  properties: {
-    reply: {
-      type: SchemaType.STRING,
-      description: "The main answer to the user's question, formatted in Markdown."
-    },
-    suggestedQuestions: {
-      type: SchemaType.ARRAY,
-      description: "3-4 context-aware follow-up questions.",
-      items: { type: SchemaType.STRING }
-    }
-  },
-  required: ["reply", "suggestedQuestions"]
-};
-
-// Initialize Gemini globally to save memory and CPU cycles per request
-const key = process.env.GEMINI_API_KEY;
-let model = null;
-
-if (key) {
-  const genAI = new GoogleGenerativeAI(key);
-  model = genAI.getGenerativeModel({ 
-    model: "gemini-1.5-flash",
-    systemInstruction: SYSTEM_INSTRUCTION,
-    generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema: responseSchema
-    }
-  });
-} else {
-  console.warn("WARNING: GEMINI_API_KEY is not configured.");
-}
-
-const PORT = process.env.PORT || 3005;
-
-app.post('/api/chat', (req, res, next) => {
+router.post('/chat', (req, res, next) => {
   const token = req.headers.authorization?.split('Bearer ')[1];
   if (token === 'GUEST_TOKEN') return guestLimiter(req, res, next);
   limiter(req, res, next);
-}, authenticateUser, async (req, res) => {
-  try {
-    if (!model) return res.status(500).json({ error: "Gemini API is unavailable" });
-    
-    const { contents } = chatSchema.parse(req.body);
+}, authenticateUser, handleChat);
 
-    const history = contents.slice(0, -1).map(msg => ({
-      role: msg.role,
-      parts: msg.parts
-    }));
-    const latestMessage = contents[contents.length - 1].parts[0].text;
-
-    const chat = model.startChat({ history });
-    const result = await chat.sendMessage(latestMessage);
-    
-    let rawText;
-    try {
-      rawText = result.response.text();
-    } catch (e) {
-      return res.json({ 
-        reply: "I cannot fulfill this request as it violates safety guidelines regarding political or sensitive content.", 
-        suggestedQuestions: ["How does voting work?", "What is the Election Commission?"] 
-      });
-    }
-
-    // Safely extract JSON even if the AI prefixes it with conversational text
-    const jsonMatch = rawText.match(/```(?:json)?\n?([\s\S]*?)\n?```/);
-    let data;
-    try {
-      data = JSON.parse(rawText);
-      // Validate schema presence to ensure the client receives required fields
-      if (!data.reply || !data.suggestedQuestions) throw new Error("Missing required fields in AI response");
-    } catch (parseError) {
-      console.error("Failed to parse Gemini output:", rawText);
-      // Fallback payload to prevent client-side crashes and maintain interaction
-      data = {
-        reply: "I formulated an answer, but I encountered an error formatting it. Could you please rephrase your question?",
-        suggestedQuestions: ["What is the voting process?", "How do I find my polling booth?"]
-      };
-    }
-
-    res.json(data);
-
-  } catch (error) {
-    console.error("Chat Error:", error);
-    const isValidationErr = error instanceof z.ZodError;
-    res.status(isValidationErr ? 400 : 500).json({ 
-      error: isValidationErr ? error.message : "An internal server error occurred. Please try again later." 
-    });
-  }
-});
+app.use('/api', router);
 
 const distPath = path.join(__dirname, '../client/dist');
 app.use(express.static(distPath));
@@ -224,6 +131,7 @@ app.use((req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
+const PORT = process.env.PORT || 3005;
 const server = app.listen(PORT, () => {
   console.log(`ElectionGuide AI Backend running on port ${PORT}`);
 });

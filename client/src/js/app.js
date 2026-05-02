@@ -113,18 +113,35 @@ async function loadMode(mode, navEl) {
     
     const wrapper = document.createElement('div');
     wrapper.className = 'msg-row ai';
-    wrapper.innerHTML = `
-      <div class="avatar ai" aria-hidden="true">🗳️</div>
-      <div class="bubble bubble--booth">
-        <p class="booth-intro">Here are polling locations near <strong>${safeLoc}</strong>:</p>
-        <iframe
-          title="Polling booths near ${safeLoc}"
-          class="booth-map"
-          width="100%" height="300"
-          loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"
-          src="${embedUrl}">
-        </iframe>
-      </div>`;
+    
+    // Create the booth elements programmatically to prevent layout thrashing and double-loading
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar ai';
+    avatar.setAttribute('aria-hidden', 'true');
+    avatar.textContent = '🗳️';
+    
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble bubble--booth';
+    
+    const intro = document.createElement('p');
+    intro.className = 'booth-intro';
+    intro.innerHTML = `Here are polling locations near <strong>${safeLoc}</strong>:`;
+    
+    const iframe = document.createElement('iframe');
+    iframe.title = `Polling booths near ${safeLoc}`;
+    iframe.className = 'booth-map';
+    iframe.width = '100%';
+    iframe.height = '300';
+    iframe.loading = 'lazy';
+    iframe.allowFullscreen = true;
+    iframe.referrerPolicy = 'no-referrer-when-downgrade';
+    iframe.src = embedUrl;
+    
+    bubble.appendChild(intro);
+    bubble.appendChild(iframe);
+    wrapper.appendChild(avatar);
+    wrapper.appendChild(bubble);
+    
     chat.appendChild(wrapper);
     requestAnimationFrame(() => { chat.scrollTop = chat.scrollHeight; });
     return;
