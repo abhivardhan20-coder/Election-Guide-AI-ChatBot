@@ -25,14 +25,19 @@ export async function callGeminiAPI(text, historyLog, auth, isGuest) {
     parts: [{ text }]
   });
 
-  const response = await fetch('/api/chat', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${idToken}`
-    },
-    body: JSON.stringify({ contents })
-  });
+  let response;
+  try {
+    response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`
+      },
+      body: JSON.stringify({ contents })
+    });
+  } catch (networkError) {
+    throw new Error("Network error: Please check your internet connection and try again.");
+  }
 
   const data = await response.json();
   if (!response.ok) {

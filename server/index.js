@@ -45,7 +45,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-      "script-src": ["'self'", "https://accounts.google.com", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "'unsafe-inline'"],
+      "script-src": ["'self'", "https://accounts.google.com", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
       "connect-src": ["'self'", "https://generativelanguage.googleapis.com", "https://*.googleapis.com", "https://*.firebaseio.com", "https://*.firestore.googleapis.com", "https://accounts.google.com"],
       "img-src": ["'self'", "data:", "https://*.googleusercontent.com"],
       "frame-src": ["'self'", "https://accounts.google.com"],
@@ -172,7 +172,16 @@ app.post('/api/chat', (req, res, next) => {
     const chat = model.startChat({ history });
     const result = await chat.sendMessage(latestMessage);
     
-    let rawText = result.response.text();
+    let rawText;
+    try {
+      rawText = result.response.text();
+    } catch (e) {
+      return res.json({ 
+        reply: "I cannot fulfill this request as it violates safety guidelines regarding political or sensitive content.", 
+        suggestedQuestions: ["How does voting work?", "What is the Election Commission?"] 
+      });
+    }
+
     // Safely extract JSON even if the AI wraps it in markdown formatting
     rawText = rawText.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
     

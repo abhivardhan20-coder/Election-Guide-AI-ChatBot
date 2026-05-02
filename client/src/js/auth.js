@@ -19,14 +19,19 @@ export async function syncProfileToFirebase(db, localStorage) {
   
   const email = auth.currentUser.email; 
   
+  // Extract values immediately before the delay to avoid race conditions
+  const age = document.getElementById('userAge')?.value || '';
+  const location = document.getElementById('userLocation')?.value || '';
+  const status = document.getElementById('userStatus')?.value || '';
+  
   clearTimeout(syncTimeout);
   syncTimeout = setTimeout(async () => {
     try {
       console.log("Syncing profile to Firebase...");
       await setDoc(doc(db, "users", email), {
-        age: document.getElementById('userAge').value,
-        location: document.getElementById('userLocation').value,
-        status: document.getElementById('userStatus').value,
+        age,
+        location,
+        status,
         updatedAt: new Date().toISOString()
       }, { merge: true });
       console.log("Profile synced successfully.");
